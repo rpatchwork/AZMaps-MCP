@@ -1,3 +1,39 @@
 {
-  "agents": {}
+  "agents": {
+    "lead": {
+      "persistent_name": "Morpheus",
+      "universe": "The Matrix",
+      "created_at": "2026-05-20T00:00:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "cloud-engineer": {
+      "persistent_name": "Neo",
+      "universe": "The Matrix",
+      "created_at": "2026-05-20T00:00:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "geospatial-engineer": {
+      "persistent_name": "Niobe",
+      "universe": "The Matrix",
+      "created_at": "2026-05-20T00:00:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "backend-dev": {
+      "persistent_name": "Trinity",
+      "universe": "The Matrix",
+      "created_at": "2026-05-20T00:00:00Z",
+      "legacy_named": false,
+      "status": "active"
+    },
+    "tester": {
+      "persistent_name": "Tank",
+      "universe": "The Matrix",
+      "created_at": "2026-05-20T00:00:00Z",
+      "legacy_named": false,
+      "status": "active"
+    }
+  }
 }

@@ -1,4 +1,22 @@
 {
-  "universe_usage_history": [],
-  "assignment_cast_snapshots": {}
+  "universe_usage_history": [
+    {
+      "universe": "The Matrix",
+      "assignment_id": "azmaps-mcp-001",
+      "used_at": "2026-05-20T00:00:00Z"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "azmaps-mcp-001": {
+      "universe": "The Matrix",
+      "agents": {
+        "lead": "Morpheus",
+        "cloud-engineer": "Neo",
+        "geospatial-engineer": "Niobe",
+        "backend-dev": "Trinity",
+        "tester": "Tank"
+      },
+      "created_at": "2026-05-20T00:00:00Z"
+    }
+  }
 }

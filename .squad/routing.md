@@ -6,13 +6,15 @@ How to decide who handles what.
 
 | Work Type | Route To | Examples |
 |-----------|----------|----------|
-| {domain 1} | {Name} | {example tasks} |
-| {domain 2} | {Name} | {example tasks} |
-| {domain 3} | {Name} | {example tasks} |
-| Code review | {Name} | Review PRs, check quality, suggest improvements |
-| Testing | {Name} | Write tests, find edge cases, verify fixes |
-| Scope & priorities | {Name} | What to build next, trade-offs, decisions |
+| Architecture & scope | Morpheus | Technical direction, architectural decisions, trade-offs, project priorities |
+| Azure infrastructure & deployment | Neo | Azure Maps deployment, Bicep/Terraform, SKU selection, networking routes (VNets, NSGs) |
+| Azure Maps & geospatial | Niobe | Azure Maps capabilities, geocoding, routing (physical world), map SDK, spatial operations |
+| MCP Server implementation | Trinity | MCP server development, Azure Maps SDK integration, API design, error handling |
+| Testing & quality | Tank | Test strategy, test implementation, edge cases, validation |
+| Code review | Morpheus | Review PRs, check quality, suggest improvements |
+| Scope & priorities | Morpheus | What to build next, trade-offs, decisions |
 | Session logging | Scribe | Automatic — never needs routing |
+| Work queue monitoring | Ralph | Automatic — tracks GitHub issues, PRs, CI status |
 
 ## Issue Routing
 
