@@ -39,14 +39,38 @@
 3. Static Map Defaults: 800x600 fallback (Trinity)
 
 ### Outstanding Blockers (2026-05-21)
-- ❌ Route API: 11/11 tests failing (HTTP 415)
-- ❌ Static Map Pins: Wrong coordinate order (lat lon vs lon lat)
+- ❌ Route API: 11/11 tests failing (HTTP 415) → **Root cause identified by Niobe**
+- ❌ Static Map Pins: Wrong coordinate order (lat lon vs lon lat) → **Root cause identified by Niobe**
 
 ### Testability Ratings
 - EXCELLENT: geocode, reverse-geocode, timezone, batch-geocode
 - GOOD: route
 - MODERATE: POI search (quality validation complex)
 - CHALLENGING: static-map (visual regression)
+
+---
+
+### 2026-05-21: Collaboration Protocol — Testing Phase Gate
+
+**Context:** Squad established mandatory specialist review gates. My role enforces quality before testing phase.
+
+**New Testing Gate:**
+- I will NOT begin integration testing for Azure Maps API code until Niobe approval is documented
+- Approval signal: "Azure Maps implementation reviewed — approved by Niobe" in design doc or PR
+- Rationale: This incident showed 2 critical bugs that specialist review would have caught pre-testing
+
+**Why This Matters:**
+- Testing phase discovered bugs that specialist review would have prevented
+- 11 failed route tests + coordinate bug = wasted test cycles
+- Niobe's 1-hour research identified both root causes immediately
+- Specialist review is cheaper than test-fix cycles
+
+**Enforcement:**
+- Check for Niobe approval before running API integration tests
+- Escalate to Morpheus if approval missing and pressure to test exists
+- Document approval status in test reports
+
+**Key Learning:** Testing validates implementation correctness, but specialist review validates domain correctness. Domain review must come first.
 
 ### Key Learnings
 1. Golden test pattern works for POI quality

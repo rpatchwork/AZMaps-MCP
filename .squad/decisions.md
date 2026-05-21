@@ -346,6 +346,118 @@ Travel agents can:
 - Traffic delays
 - Arrival/departure times (ISO 8601 UTC)
 - Route geometry (legs[].points[])
+
+---
+
+## 2026-05-21: Azure Maps Gen2 REST API Research Findings
+**Author:** Niobe  
+**Type:** Research Deliverable  
+**Context:** Route API blockers + static map pin coordinate bug
+
+**Critical Findings:**
+
+### Route API Fix
+- **Missing endpoint suffix:** Must use `/route/directions/json` not `/route/directions`
+- **Request format:** GeoJSON FeatureCollection with pointIndex and pointType properties
+- **Coordinate order:** [longitude, latitude] per GeoJSON standard
+
+### Static Map Pin Fix
+- **Coordinate format:** `longitude latitude` (space-separated, NOT comma)
+- **Current bug:** Using `latitude,longitude` format causes incorrect pin placement
+
+**Implementation Impact:** Both fixes are one-line changes but critical for v1 functionality. All 11 route tests blocked until endpoint path corrected.
+
+**Related:** See morpheus-squad-methodology-improvements.md for collaboration protocol established from this incident.
+
+---
+
+## 2026-05-21: MCP Best Practices for Tool Design
+**Author:** Trinity  
+**Type:** Research Deliverable  
+**Context:** Schema design guidance for AZMaps-MCP tools
+
+**Key Findings:**
+
+### Tool Schema Principles
+1. **Dynamic discovery:** Agents call tools/list on connection - descriptions drive tool selection
+2. **Parameter clarity:** Include examples, constraints, defaults in descriptions
+3. **Optional parameters:** Make filters/limits optional with sensible defaults
+4. **Token efficiency:** Return structured + concise responses
+
+### Response Standards
+- **Error envelope:** Standardized structure with retry guidance
+- **Success metadata:** Include confidence scores, truncation flags
+- **Verbosity control:** outputLevel parameter (summary/detailed/full)
+
+### Naming Conventions
+- **Clarity over brevity:** maxResults > max, countryFilter > country
+- **Consistency:** Same parameter names across all tools
+- **CamelCase:** Standard for JavaScript ecosystem
+
+**Implementation Impact:** Guides schema design for all 7 v1 tools. Establishes patterns for error handling, pagination, and output control.
+
+**Related:** Applied in all tool implementations. See trinity-tool-design-* files for per-tool application.
+
+---
+
+## 2026-05-21: Squad Collaboration Protocol (Specialist Review Gates)
+**Decider:** Morpheus (Lead)  
+**Type:** Process Decision  
+**Status:** 🔒 APPROVED — Immediate implementation  
+**Consulted:** Full squad (Niobe, Trinity, Tank, Neo, Morpheus)
+
+**Context:** Trinity implemented v1 without consulting Niobe (Azure Maps specialist), resulting in 2 critical blockers that Niobe's research immediately identified. Root cause: No collaboration protocol between domain experts.
+
+**Decision:** Establish domain ownership model with mandatory specialist review gates for API integrations.
+
+### Domain Ownership
+
+**Trinity (MCP Expert) owns:**
+- MCP server lifecycle (tool registration, invocation)
+- JSON schema design (descriptions, parameters, response structure)
+- TypeScript/Node.js architecture
+
+**Niobe (Azure Maps Specialist) owns:**
+- Azure Maps REST API correctness (endpoints, parameters, response parsing)
+- Coordinate format handling (lat/lon vs. lon/lat, GeoJSON standards)
+- API version selection and migration guidance
+- Geospatial domain logic
+
+### Handoff Pattern: Trinity → Niobe → Trinity
+
+1. **Stage 1:** Trinity designs MCP tool schema → deliverable in `.squad/decisions/inbox/`
+2. **Stage 2:** Niobe reviews and provides Azure Maps API guidance
+3. **Stage 3:** Trinity implements with Niobe's guidance
+4. **Stage 4:** Niobe reviews actual HTTP client code
+5. **Stage 5:** Tank validates with integration tests
+
+### Review Gate (REQUIRED)
+
+**Trigger:** Implementing or modifying code that calls Azure Maps REST APIs
+
+**Gate:** Niobe MUST review before code reaches Tank (testing phase)
+
+**Enforcement:**
+- Trinity creates design document → pings Niobe for review
+- Niobe has 24h to review (or delegate if unavailable)
+- Code with "Reviewed by Niobe" approval can proceed to Tank
+- Emergency override: Morpheus can waive gate, but post-hoc review required
+
+### Boundaries
+
+**Trinity asks Niobe when:**
+- Uncertain about API version, coordinate formats, endpoint parameters
+- Error codes need interpretation
+- Response parsing has ambiguity
+
+**Niobe asks Trinity when:**
+- MCP schema design questions
+- Tool naming or description clarity
+- TypeScript implementation patterns
+
+**Why This Matters:** Prevents specialist-bypass incidents. Domain experts must review their domains. Hero-member pattern (one person doing multiple domains) creates avoidable errors.
+
+**Related:** Incident root cause: niobe-azure-maps-rest-api-research.md identified both blockers that specialist review would have caught pre-implementation.
 - Turn-by-turn directions (guidance.instructions[])
 
 **What's NOT Native (Deferred to Phase 2):**
