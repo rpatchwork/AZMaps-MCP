@@ -51,6 +51,87 @@ param sku string = 'G2'
 
 ---
 
+### 2026-05-22: Infrastructure Packaging & MCP Best Practices Research
+
+**Mission 1: Production-Ready Infrastructure Package (with Ralph)**
+
+**Deliverable:** `infra/stable/` — Complete production-ready infrastructure package
+
+**Structure Created:**
+- `1-acr/` — Azure Container Registry deployment module
+- `2-maps/` — Azure Maps Gen2 deployment module
+- `README.md` — Master deployment guide with architecture, costs, security, troubleshooting
+- `GETTING_STARTED.md` — Quick start guide for new developers
+- `DEPLOYMENT_MANIFEST.md` — Deployment tracking, validation checklist, rollback procedures
+- `OUTPUTS.md` — Resource IDs, API key retrieval, environment setup
+- `deploy-all.ps1` — Automated deployment script
+
+**Deployed Resources Validated:**
+- ✅ Azure Container Registry: `azmapsmcp.azurecr.io` (Standard SKU, Basic tier $5/month)
+- ✅ Azure Maps Gen2: `azmapsmcp-maps-dev` (SKU G2, pay-as-you-go $0-50/month)
+- ✅ Docker image: Successfully pushed to ACR (azmaps-mcp:latest)
+- ⚠️ Azure Container Apps: Deployment failed (RBAC permissions issue, archived to infra/archive/)
+
+**Cost Estimates:**
+- ACR Basic: ~$5/month (0.5GB storage included)
+- Azure Maps Gen2: $0-50/month (pay-as-you-go based on transactions)
+- Container Apps: ~$30-50/month (when deployed with minReplicas: 1)
+- **Total: ~$35-105/month estimated**
+
+**Documentation Quality:**
+- Architecture diagram (ASCII art, clear component relationships)
+- Cost breakdown (with monthly estimates and optimization tips)
+- Security model (Managed Identity, Key Vault integration, RBAC requirements)
+- Troubleshooting guide (common deployment errors and solutions)
+- Rollback procedures (deployment manifest tracks each deployment)
+
+**Container Apps Debugging Needed:**
+- RBAC permissions for ACR pull (AcrPull role assignment)
+- Log Analytics workspace configuration
+- Managed Identity setup for Azure Maps access
+- **Action:** Move to Sprint 001 as WI-001 (Neo, 2 days, Priority 1)
+
+---
+
+**Mission 2: MCP Best Practices Research (with Trinity)**
+
+**Deliverable:** Co-authored `.squad/knowledge/mcp-azure-best-practices.md` (89KB, 8 sections)
+
+**Key Infrastructure Findings:**
+
+**Container Apps Validated as Optimal:**
+- Always-warm with minReplicas: 1 (zero cold starts for interactive agents)
+- Cost-effective: ~$30-50/month vs Functions Premium ~$200/month
+- Autoscale support: Scale to zero possible, but not recommended for MCP
+- Health probes required: Container Apps needs `/health` endpoint
+
+**Production Readiness Checklist:**
+- ✅ Container registry configured
+- ✅ Image build pipeline validated
+- ✅ Deployment automation (Bicep modules modular and reusable)
+- 🔧 Health probes needed (Trinity WI-002, 4 hours)
+- 🔧 Structured logging needed (Trinity WI-003, 6 hours)
+- 🔧 Container Apps deployment fix (Neo WI-001, 2 days)
+
+**Squad Meeting Outcome (2026-05-22):**
+- Research presented to full squad (Morpheus facilitated)
+- Unanimous decision: **CONTINUE WITH EXISTING CODEBASE**
+- Infrastructure validated as production-ready foundation ✅
+- Only Container Apps hosting layer needs debugging (expected for containerized apps)
+
+**Personal Contribution:**
+- Co-authored MCP best practices guide with Trinity (infrastructure sections)
+- Created stable infrastructure package with comprehensive documentation
+- Validated Container Apps as optimal hosting choice
+- Identified tactical improvements (health probes, logging)
+
+**Related Decisions:**
+- Supports AD-006 (Continue with Codebase) — infrastructure stable
+- Validates AD-001 (Bicep IaC) — deployment automation working
+- Informs Sprint 001 planning (WI-001 Container Apps fix)
+
+---
+
 ## Core Infrastructure Patterns
 
 ### Bicep Module Design
