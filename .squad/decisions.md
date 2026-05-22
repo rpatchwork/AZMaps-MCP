@@ -567,3 +567,235 @@ Travel agents can:
 
 **Recommendation:** Golden test pattern for POI quality - capture known-good result sets, test for regressions
 
+---
+
+### AD-004: Azure Maps Gen2 Deployment Verification
+**Date:** 2026-05-21  
+**Verified by:** Neo (Infrastructure Specialist)  
+**Authority:** Brady directive - Gen1 APIs deprecated, Gen2 required
+
+**Summary:** ✅ CONFIRMED — Azure Maps account deployed as Gen2 (SKU G2) with zero Gen1 references.
+
+**Deployed Configuration:**
+- Resource: `azmapsmcp-maps-dev`
+- SKU: G2 (Standard tier)
+- Kind: Gen2
+- Status: Succeeded
+
+**Infrastructure Safety:**
+- Bicep @allowed(['G2']) decorator prevents Gen1 deployment
+- No S0/S1 SKU references in codebase
+- kind: 'Gen2' explicitly set in all modules
+
+**Compliance:** No remediation required. Project is Gen2-compliant from inception.
+
+---
+
+### AD-005: Azure Maps Gen2 Only (2026-05-21)
+
+**Decision:** This project uses ONLY Azure Maps Gen2. Gen1 APIs are deprecated and MUST NOT be referenced.
+
+**Rationale:**
+- Gen1 (SKUs S0, S1) is deprecated for new accounts
+- Gen2 (SKU G2) is the current supported generation
+- Mixing generations causes API compatibility issues
+- Neo confirmed Gen2 deployed (SKU G2, kind: 'Gen2')
+
+**Enforcement:**
+- Niobe is the Gen2 gatekeeper — rejects any Gen1 references
+- All infrastructure MUST use SKU G2 only (enforced via Bicep `@allowed(['G2'])`)
+- All API documentation MUST specify Gen2 endpoints
+- All tests MUST validate against Gen2 APIs
+- See Niobe's Gen2 compliance checklist for team-wide checks
+
+**Compliance Checklist Owner:** Niobe
+
+**Status:** ACTIVE
+
+---
+
+### Niobe Charter Update: Gen2 Enforcement Role
+**Date:** 2026-05-21  
+**Proposed by:** Niobe (Azure Maps Specialist)  
+**Authority:** Brady directive — "Azure Maps Gen2 only is a rule that gets followed everywhere"
+
+**Charter Addition:** Niobe is now the Gen2 compliance gatekeeper. NO ONE may reference, deploy, or document Gen1 patterns without rejection.
+
+**Enforcement Actions:**
+- Review all Azure Maps infrastructure for S0/S1 SKU references
+- Audit API documentation for Gen2 compatibility
+- Challenge Gen1 references from any team member
+- Maintain Gen1-free knowledge base
+- Pre-deployment verification of G2 SKU
+
+**Red Flags:** Infrastructure with S0/S1, documentation suggesting Gen1→Gen2 migration, API guidance for Gen1-only endpoints, ambiguous tier discussions
+
+**Collaboration:** Neo (verify Bicep G2-only), Trinity (validate MCP tools don't encode Gen1 assumptions), Tank (test Gen2 deployment), Scribe (documentation uses Gen2 terminology)
+
+---
+
+### Gen2 Compliance Checklist
+**Date:** 2026-05-21  
+**Enforced by:** Niobe (Azure Maps Specialist)  
+**Authority:** Brady directive — Gen1 deprecated, Gen2 required
+
+**Pre-Flight Checks:**
+
+**Neo (Infrastructure):**
+- [ ] Bicep/Terraform SKU restricted to ['G2']
+- [ ] Resource definition includes kind: 'Gen2'
+- [ ] Zero S0/S1 references in parameter files
+- [ ] Niobe approval: "Infrastructure reviewed — Gen2 compliant"
+
+**Trinity (API Integration):**
+- [ ] Endpoints use Gen2-compatible API versions
+- [ ] Auth method works with Gen2 (subscription key or Managed Identity)
+- [ ] No Gen1 SKU behavior assumptions
+- [ ] Niobe approval: "API integration reviewed — Gen2 compatible"
+
+**Tank (Testing):**
+- [ ] Test fixtures assume Gen2 account (G2 SKU)
+- [ ] Test cases validate Gen2 deployment
+- [ ] Integration tests verify Gen2 API responses
+- [ ] Niobe approval: "Test plan reviewed — Gen2 assumptions validated"
+
+**Scribe (Documentation):**
+- [ ] All references say "Gen2 account (G2 SKU)"
+- [ ] Setup instructions specify Gen2 deployment only
+- [ ] Niobe approval: "Documentation reviewed — Gen2 terminology correct"
+
+**Red Flags:** "Should we use S0 or G2?", S0/S1 in @allowed lists, "Gen1 vs Gen2" sections, Gen1 migration discussions
+
+**Audit Pattern:** `S0|S1|Gen1|gen1` (expected: zero matches except deprecation warnings)
+
+**Consequences:** Infrastructure deployment fails (Bicep enforces), documentation rejected, code flagged for review, test assumptions challenged
+
+**Questions:** Ask Niobe — Gen2 compliance gatekeeper and Azure Maps domain expert
+
+---
+
+## AD-006: Continue with Existing Codebase + Tactical Improvements
+
+**Date:** 2026-05-22  
+**Decider:** Morpheus (Lead) with unanimous squad consensus  
+**Status:** 🔒 LOCKED — Implementation proceeding  
+**Participants:** Full squad (Morpheus, Niobe, Trinity, Tank, Neo, Ralph, Scribe)  
+**Meeting:** V1 Reboot Squad Meeting (research phase outcomes)
+
+**Context:** After comprehensive research phase covering infrastructure stability (Ralph+Neo), MCP best practices (Trinity+Neo), and Azure Maps API specifications (Niobe+Trinity), squad needed to decide: continue with 90% complete codebase or start fresh?
+
+**Decision:** **CONTINUE WITH EXISTING CODEBASE + 5 TACTICAL IMPROVEMENTS**
+
+**What's Already Built (90% Complete):**
+- ✅ MCP Server Implementation (tool registration, invocation, stdio transport)
+- ✅ 7 Primitive Tools (geocode, batch-geocode, reverse-geocode, POI search, route, timezone, static map)
+- ✅ Infrastructure Layer (AzureMapsClient, centralized HTTP, error handling, types)
+- ✅ Testing Framework (Vitest, unit/integration/performance test structure)
+- ✅ Build & Development (TypeScript strict, ESBuild, Docker, package.json)
+- ✅ Deployed Infrastructure (Azure Container Registry, Azure Maps Gen2)
+
+**What Needs Tactical Refinement (10%):**
+1. Health probes for Container Apps (Trinity, 4 hours)
+2. Structured logging - replace console.log (Trinity, 6 hours)
+3. Parameter enhancements - maxResults, outputLevel (Trinity, 4 hours)
+4. API version audit and updates (Niobe, 4 hours)
+5. Container Apps deployment debugging (Neo, 2 days)
+
+**Rationale:**
+
+**Research Validation:**
+- Infrastructure research (Ralph+Neo): Production-ready foundation ✅
+- MCP best practices research (Trinity+Neo): Architecture validated ✅
+- API specification analysis (Niobe+Trinity): Tool coverage validated ✅
+
+**Cost-Benefit Analysis:**
+
+| Approach | Effort | Risk | Time to Ship |
+|----------|--------|------|--------------|
+| **Continue + Refine** | 2-3 days | Low | 1 week |
+| **Clean Restart** | 2-3 weeks | Medium | 3-4 weeks |
+
+**Starting from scratch would rebuild the same architecture, rewrite the same tool handlers, and recreate the same test structure — all to arrive at the same place we already are.**
+
+**Squad Consensus:** Unanimous agreement to continue with existing codebase.
+
+**Consequences:**
+- ✅ Ship v1 in 1 week instead of 3-4 weeks
+- ✅ Maintain development momentum
+- ✅ Preserve team knowledge embedded in current codebase
+- ✅ Focus engineering effort on tactical improvements vs. rebuilding working code
+- ⚠️ Accept that architectural patterns are locked (Node.js/TypeScript/Container Apps/Direct REST)
+
+**Implementation:** See Sprint 001 plan (`.squad/planning/sprint-001-v1-launch.md`) for detailed work items, timeline, and success criteria.
+
+**Related Decisions:** Validates AD-002 (Node.js/TypeScript), AD-003 (V1 Primitive Scope), AD-005 (Gen2 only)
+
+---
+
+## AD-007: API Version Strategy for Azure Maps Gen2
+
+**Date:** 2026-05-22  
+**Decider:** Niobe (Azure Maps Specialist)  
+**Status:** 🔒 LOCKED — Version audit in progress  
+**Reviewed by:** Morpheus (strategic), Trinity (implementation impact)
+
+**Context:** Azure Maps has multiple API versions across categories (Search, Route, Render, Timezone). Current implementation may use inconsistent or outdated versions. Squad meeting identified need for explicit version selection strategy.
+
+**Decision:** Use **latest stable Gen2 versions** for all Azure Maps REST API calls:
+
+| API Category | Version | Status | Rationale |
+|--------------|---------|--------|-----------|
+| **Search** | 2026-01-01 | Latest Stable | GA March 2026, newest features |
+| **Route** | 2025-01-01 | Latest Stable | Current production version |
+| **Render** | 2024-04-01 | Latest Stable | Avoid deprecated 1.0 (retiring Sept 2026) |
+| **Timezone** | 1.0 | Only Stable | Single supported version |
+
+**Rationale:**
+
+**Future-Proofing:**
+- Latest stable versions provide newest features without preview/breaking change risk
+- Avoid deprecated APIs (Render 1.0 retiring September 2026)
+- Reduce risk of forced migration during v1 production lifetime
+
+**API Stability:**
+- All selected versions are GA (Generally Available) — no preview/beta status
+- Gen2 platform commitment: Stable versions maintained long-term
+- Date-based versioning (YYYY-MM-DD) signals API maturity
+
+**Operational Safety:**
+- No breaking changes expected within Gen2 platform
+- Incremental updates possible without tool redesign
+- Clear audit trail for version selection rationale
+
+**Consequences:**
+- ✅ Future-proof implementation — new features available if needed
+- ✅ No breaking changes expected during v1 lifecycle
+- ✅ Clear documentation for version selection rationale
+- ⚠️ Requires audit of current implementation to identify version drift
+- ⚠️ All 7 tools must be regression tested after version updates
+
+**Implementation Plan:**
+
+**Phase 1: Audit (Niobe, 2 hours)**
+1. Search codebase for `api-version=` query parameters
+2. Compare against latest stable versions in Azure Maps API reference
+3. Document current vs. target versions for each tool
+4. Create version drift report
+
+**Phase 2: Update (Trinity, 2 hours)**
+1. Update HTTP client with correct API versions
+2. Add inline code comments documenting version selection rationale
+3. Update tool documentation with API version info
+
+**Phase 3: Validation (Tank, 1 hour)**
+1. Run full integration test suite against updated versions
+2. Validate all 7 tools produce expected responses
+3. Document any behavioral changes observed
+
+**Success Criteria:**
+- ✅ All tools use documented latest stable versions
+- ✅ Zero test regressions after version updates
+- ✅ Version selection rationale documented in code comments
+- ✅ API reference documents match deployed versions
+
+**Related Decisions:** Enforces AD-005 (Gen2 only), supports AD-006 (tactical improvements), aligns with AD-003 (V1 primitive scope)
