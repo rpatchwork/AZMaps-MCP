@@ -1,0 +1,50 @@
+{
+  "name": "azmaps-mcp-server",
+  "version": "1.0.0",
+  "description": "Model Context Protocol server for Azure Maps API — Exposes 7 primitive geospatial operations for travel agent workflows",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "test": "vitest",
+    "test:unit": "vitest run --dir tests/unit",
+    "test:integration": "vitest run --dir tests/integration",
+    "test:performance": "vitest run --dir tests/performance",
+    "test:coverage": "vitest run --coverage",
+    "start": "node dist/server.js",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write 'src/**/*.ts'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@types/express": "^5.0.6",
+    "dotenv": "^16.0.0",
+    "express": "^5.2.1",
+    "zod": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "eslint": "^8.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "azure-maps",
+    "geocoding",
+    "routing",
+    "geospatial"
+  ],
+  "author": "AZMaps-MCP Squad",
+  "license": "MIT"
+}
