@@ -9,6 +9,16 @@
 
 ---
 
+## Persona Clarification
+
+**Development Team:** rpatchwork (GitHub owner, actual developer)  
+**"Brady" in this document:** Persona/alias used in early planning for user acceptance testing role  
+**Reality:** rpatchwork IS the user who validates work, tests workflows, and signs off on releases
+
+> **Note:** Throughout this sprint plan, "Brady" references should be understood as **rpatchwork performing UAT/validation**. The persona was created during initial planning but represents the same individual. All testing, sign-off, and feedback comes from rpatchwork.
+
+---
+
 ## Executive Summary
 
 **Status:** 🟢 Ready to Execute (REFOCUSED)

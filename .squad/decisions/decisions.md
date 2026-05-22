@@ -4,6 +4,16 @@ All architectural, technical, and operational decisions for the AZMaps-MCP proje
 
 ---
 
+## Administrative Note — User Identity
+
+**User:** rpatchwork (GitHub: rpatchwork/AZMaps-MCP)  
+**"Brady" Persona:** Early sprint planning used "Brady" as a placeholder persona for UAT/validation role  
+**Clarification:** rpatchwork IS the actual user, developer, and validator. All references to "Brady" in planning documents should be understood as rpatchwork performing those activities.
+
+This note added 2026-05-22 to prevent confusion in squad documentation.
+
+---
+
 ## 2026-05-21 — V1 Scope Review (Gen2 Compliance)
 
 **Facilitator:** Morpheus (Lead)  
@@ -211,6 +221,145 @@ Niobe is the Gen2 compliance enforcer for Azure Maps. NO ONE on the squad may re
 - Team discussion about "migrating from Gen1"
 
 **Authority:** Brady has mandated Gen2-only compliance. Niobe is the enforcement mechanism.
+
+---
+
+## 2026-05-22 — Project Reboot: Research-Driven V1 Strategy
+
+**Facilitator:** Brady (rpatchwork)  
+**Context:** After deployment failures and implementation instability, pivot from fixing issues to research-first approach  
+**Status:** 🔄 IN PROGRESS — Research phase active
+
+### Decision
+
+**HALT implementation work. LAUNCH three parallel research tasks:**
+
+1. **Ralph + Neo:** Package stable infrastructure (ACR + Azure Maps Gen2 verified working)
+2. **Trinity + Neo:** Research "MCP servers in Azure" hosting patterns and Azure-native MCP deployment strategies
+3. **Niobe + Trinity:** Analyze Azure Maps Gen2 API specifications from official GitHub source code
+
+### Rationale
+
+**Symptoms of implementation-first approach:**
+- Multiple deployment failures despite "fixes"
+- Specification mismatches discovered post-implementation
+- 7+ iteration debugging cycles without clear resolution
+- Working features breaking in subsequent fixes
+- Implementation quality high, but specification quality inconsistent
+
+**Research-first approach advantages:**
+- Specifications grounded in authoritative sources (GitHub source, not docs alone)
+- Infrastructure patterns validated before code written
+- Hosting strategy determined before deployment attempts
+- Reduces rework cycles by validating assumptions early
+
+### Research Tasks
+
+#### Task 1: Stable Infrastructure Packaging (Ralph + Neo)
+
+**Deliverable:** Deployment-ready infrastructure with verified working components
+
+**Components to Package:**
+- ✅ Azure Container Registry (azmapsmcp.azurecr.io)
+- ✅ Azure Maps Gen2 account (azmapsmcp-maps-dev, SKU G2)
+- ✅ Verified Docker image build process
+- ✅ ACR push/pull authentication
+
+**Success Criteria:**
+- Infrastructure deployed and stable
+- Gen2 compliance verified
+- Docker image successfully pushed to ACR
+- Authentication working end-to-end
+
+**Status:** Infrastructure already deployed and verified. Packaging for reuse.
+
+#### Task 2: MCP in Azure Hosting Patterns (Trinity + Neo)
+
+**Deliverable:** Recommended Azure hosting strategy for MCP servers
+
+**Research Questions:**
+1. What are the proven patterns for hosting MCP servers in Azure?
+2. Container Apps vs. App Service vs. Functions for MCP hosting?
+3. Authentication/authorization patterns for MCP endpoints
+4. Cold start mitigation strategies
+5. Scaling and reliability considerations
+6. Cost optimization approaches
+
+**Sources:**
+- Microsoft MCP documentation
+- Azure architecture patterns
+- Community implementations (GitHub)
+- Model Context Protocol specification
+
+**Success Criteria:**
+- Documented hosting pattern recommendation
+- Trade-offs analysis (Container Apps vs alternatives)
+- Authentication strategy defined
+- Deployment checklist created
+
+#### Task 3: Azure Maps API Specification Analysis (Niobe + Trinity)
+
+**Deliverable:** Authoritative Azure Maps Gen2 API specifications from source
+
+**Research Questions:**
+1. What is the canonical API version for Route API? (conflicting info: 1.0 vs 2025-01-01)
+2. What is the exact Static Map path parameter syntax?
+3. What encoding requirements exist for geographic parameters?
+4. Are there Azure Maps SDK examples we can reference?
+
+**Sources:**
+- ✅ Azure Maps GitHub repository (official source code)
+- ✅ REST API reference documentation
+- ✅ JavaScript SDK documentation
+- ✅ Migration guides (Bing Maps, Google Maps)
+- ✅ Live API validation against deployed instance
+
+**Success Criteria:**
+- API specifications validated against source code
+- Ambiguities resolved via authoritative sources
+- Wire-level examples documented
+- Encoding requirements cataloged
+
+### Squad Coordination
+
+**Meeting After Research:**
+- All three tasks complete their research
+- Squad reconvenes to discuss findings
+- New V1 plan formulated based on research insights
+- Sprint planning follows with validated specifications
+
+**Sprint Planning (Post-Research):**
+- Implementation work resumes with validated specifications
+- Deployment strategy determined by hosting pattern research
+- API integrations use source-verified specifications
+- Infrastructure reused from packaged stable components
+
+### Exit Criteria for Research Phase
+
+**Research phase complete when:**
+1. ✅ Infrastructure packaged and documented
+2. ✅ Hosting pattern recommendation documented
+3. ✅ Azure Maps API specifications validated from source
+4. ✅ Squad meeting held to review findings
+5. ✅ V1 plan updated based on research
+
+**Expected Timeline:** 2-4 hours for research completion
+
+### Process Improvement
+
+**Lesson from V1 Iteration Cycles:**
+- Implementation without validated specifications = rework
+- "Research during implementation" = context switching costs
+- Fixing implementation issues without root cause research = whack-a-mole
+- 7+ debugging iterations = signal to stop and research
+
+**New Pattern: Research → Plan → Implement → Validate**
+- Research: Validate assumptions against authoritative sources
+- Plan: Document specifications and architecture decisions
+- Implement: Code to validated specifications
+- Validate: Test against plan (not against assumptions)
+
+**Authority:** Brady initiated project reboot via pivot decision
 
 ---
 
