@@ -363,3 +363,100 @@ Niobe is the Gen2 compliance enforcer for Azure Maps. NO ONE on the squad may re
 
 ---
 
+## 2026-05-22 — Container Apps Deployment Parameter Fix
+
+**Date:** 2026-05-22 14:30 UTC  
+**Status:** ✅ Resolved  
+**Decider:** Neo (Cloud Engineer)  
+**Context:** Sprint 001, WI-001 Container Apps deployment failure  
+**Impact:** Critical Path — Unblocked deployment pipeline
+
+### Problem
+
+Container Apps deployment was failing with exit code 1. Error message:
+
+```
+unrecognized template parameter 'acrLoginServer'. 
+Allowed parameters: acrName, appName, containerImage, environmentName, 
+identityName, location, mapsApiKey, maxReplicas, minReplicas, tags
+```
+
+Previous deployment attempts were passing invalid parameters that don't exist in the Bicep template.
+
+### Root Cause
+
+The deployment command was passing two parameters that don't exist in `container-apps.bicep`:
+
+1. **`acrLoginServer`** — Template uses `acrName` (expects just the name, not full server URL)
+2. **`mapsEndpoint`** — Hardcoded in template as environment variable (not a parameter)
+
+Both values were already correctly configured in the `.bicepparam` file and the Bicep template itself.
+
+### Solution
+
+**Corrected deployment command:**
+
+```powershell
+az deployment group create \
+  --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    mapsApiKey="<MAPS_API_KEY>" \
+  --name containerapp-deployment
+```
+
+**Key Changes:**
+- ❌ Removed `acrLoginServer` parameter
+- ❌ Removed `mapsEndpoint` parameter
+- ✅ Only pass runtime-specific values: `containerImage`, `mapsApiKey`
+
+### Template Configuration Reference
+
+**In `container-apps.bicep`:**
+```bicep
+param acrName string                    // ✅ Expects just the name (e.g., "azmapsmcp")
+param containerImage string              // ✅ Full image path with tag
+@secure()
+param mapsApiKey string                  // ✅ Secure parameter for API key
+
+// ❌ NO acrLoginServer parameter
+// ❌ NO mapsEndpoint parameter (hardcoded in env vars)
+```
+
+**In `container-apps.bicepparam`:**
+```bicep
+param acrName = 'azmapsmcp'             // Already set
+param containerImage = 'azmapsmcp.azurecr.io/azmaps-mcp:latest'  // Default
+param mapsApiKey = '<RETRIEVE_FROM_DEPLOYMENT_2_OUTPUT>'  // Must override
+```
+
+### Deployment Success
+
+Deployment completed successfully with these resources:
+
+| Resource | Name | Status |
+|----------|------|--------|
+| User-Assigned Identity | `id-azmaps-mcp-dev` | ✅ Created |
+| RBAC Role Assignment | AcrPull → ACR | ✅ Assigned |
+| Log Analytics | `log-cae-azmaps-mcp-dev` | ✅ Created |
+| Container Apps Env | `cae-azmaps-mcp-dev` | ✅ Created |
+| Container App | `ca-azmaps-mcp-dev` | ✅ Running |
+
+**Container App Details:**
+- **FQDN:** `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **URL:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **Running Status:** ✅ Running
+- **Deployment Duration:** 1 minute 32 seconds
+
+### Team Impact
+
+**Critical Path Unblocked:** Container Apps deployment pipeline is now operational. Sprint 001 can proceed with MCP endpoint validation and integration testing.
+
+**Lessons Learned:**
+1. Always cross-reference Bicep parameter definitions before overriding values
+2. Parameter files (`.bicepparam`) already provide defaults — only override runtime-specific values
+3. Azure CLI error messages clearly indicate allowed parameters — use them for validation
+
+---
+

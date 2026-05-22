@@ -132,6 +132,74 @@ param sku string = 'G2'
 
 ---
 
+### 2026-05-22: WI-001 Container Apps Deployment Success
+
+**Mission:** Fix Container Apps deployment parameter errors  
+**Status:** ✅ COMPLETE — Critical Path Unblocked  
+**Duration:** 15 minutes (14:30 - 14:45 UTC)  
+**Sprint:** Sprint 001  
+
+**Problem:**
+Container Apps deployment failing with exit code 1 due to invalid parameters:
+- `acrLoginServer` — Template uses `acrName` (registry name only)
+- `mapsEndpoint` — Hardcoded in template as environment variable
+
+**Root Cause:**
+Deployment command was passing parameters that don't exist in `container-apps.bicep`. Azure CLI error message explicitly listed allowed parameters, making diagnosis straightforward.
+
+**Solution:**
+Corrected deployment command to only override runtime-specific values:
+```powershell
+az deployment group create \
+  --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    mapsApiKey="<MAPS_API_KEY>" \
+  --name containerapp-deployment
+```
+
+**Key Changes:**
+- ❌ Removed `acrLoginServer` parameter
+- ❌ Removed `mapsEndpoint` parameter
+- ✅ Only pass runtime overrides: `containerImage`, `mapsApiKey`
+
+**Deployment Results:**
+
+All resources provisioned successfully:
+| Resource | Name | Status |
+|----------|------|--------|
+| User-Assigned Identity | `id-azmaps-mcp-dev` | ✅ Created |
+| RBAC Assignment | AcrPull → ACR | ✅ Assigned |
+| Log Analytics | `log-cae-azmaps-mcp-dev` | ✅ Created |
+| Container Apps Env | `cae-azmaps-mcp-dev` | ✅ Created |
+| Container App | `ca-azmaps-mcp-dev` | ✅ Running |
+
+**Container App Details:**
+- **FQDN:** `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **URL:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **Provisioning State:** Running
+- **Deployment Duration:** 1 minute 32 seconds
+
+**Impact:**
+- ✅ Critical path unblocked — Sprint 001 can proceed
+- ✅ MCP server publicly accessible for integration testing
+- ✅ All 3 deployment stages validated (ACR → Maps → Container Apps)
+
+**Lessons Learned:**
+1. **Parameter validation:** Cross-reference Bicep parameter definitions before overriding
+2. **Error message analysis:** Azure CLI explicitly lists allowed parameters — use for diagnosis
+3. **Parameter file hygiene:** `.bicepparam` provides defaults — only override runtime values
+4. **Documentation debt:** Deployment README needs minimal command examples
+
+**Pattern for Future Deployments:**
+This parameter override pattern applies to all deployment stages. Template files define the contract; parameter files provide defaults; deployment commands only override runtime-specific values.
+
+**Related Decisions:**
+- Container Apps deployment parameter fix (decisions.md, 2026-05-22)
+
+---
+
 ## Core Infrastructure Patterns
 
 ### Bicep Module Design
@@ -203,6 +271,85 @@ param sku string = 'G2'
 - Document environment variables for Container Apps
 - Provide CLI commands for next steps
 - Clear owner assignments (Trinity for Docker, Ralph for testing)
+
+---
+
+### 2026-05-22: WI-001 — Container Apps Deployment Fixed (Sprint 001)
+
+**Status:** ✅ RESOLVED  
+**Duration:** 15 minutes  
+**Priority:** P0 (Critical Path)
+
+**Context:**
+Previous Container Apps deployment failed with exit code 1. ACR and Azure Maps were successfully deployed, Docker image pushed to registry, but Container Apps deployment was failing.
+
+**Root Cause:**
+Parameter mismatch in deployment command. The command was passing two invalid parameters:
+- `acrLoginServer` — Does NOT exist in Bicep template
+- `mapsEndpoint` — Does NOT exist in Bicep template (hardcoded to 'https://atlas.microsoft.com')
+
+**Original Failed Command:**
+```powershell
+az deployment group create --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    acrLoginServer="azmapsmcp.azurecr.io" \     # ❌ Invalid parameter
+    mapsEndpoint="https://atlas.microsoft.com" \ # ❌ Invalid parameter
+    mapsApiKey="..." \
+  --name containerapp-deployment
+```
+
+**Error Message:**
+```
+unrecognized template parameter 'acrLoginServer'. 
+Allowed parameters: acrName, appName, containerImage, environmentName, 
+identityName, location, mapsApiKey, maxReplicas, minReplicas, tags
+```
+
+**Solution:**
+Removed invalid parameters from command line:
+```powershell
+az deployment group create --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    mapsApiKey="..." \                          # ✅ Valid parameter
+  --name containerapp-deployment
+```
+
+**Template Configuration:**
+- `acrName` parameter expects just the name (e.g., "azmapsmcp"), not full URL
+- `mapsEndpoint` is hardcoded in template as environment variable
+- Both were already correctly set in `.bicepparam` file
+
+**Deployment Results:**
+- ✅ User-Assigned Managed Identity created
+- ✅ AcrPull role assignment successful
+- ✅ Log Analytics workspace created
+- ✅ Container Apps Environment created
+- ✅ Container App deployed and running
+- ✅ Duration: 1 minute 32 seconds
+
+**Deployed Resources:**
+- **Container App:** `ca-azmaps-mcp-dev`
+- **FQDN:** `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **URL:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **Status:** Running
+- **Identity Principal ID:** `8b1f95be-0e05-429f-a0dd-3a878bd26e5f`
+
+**Key Learning:**
+When Bicep deployment fails with "unrecognized template parameter":
+1. Check Bicep file for actual parameter definitions
+2. Verify `.bicepparam` file for defaults
+3. Only override parameters that need runtime values (e.g., secrets)
+4. Never assume parameter names — always check the schema
+
+**Impact:**
+- Unblocks Sprint 001 critical path
+- Container Apps infrastructure now ready for MCP server testing
+- Trinity can proceed with endpoint validation
+- Ralph can begin integration testing
 
 ---
 
