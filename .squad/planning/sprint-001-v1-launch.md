@@ -1,8 +1,9 @@
-# Sprint 001 — V1 Launch
+# Sprint 001 — V1 Launch (REFOCUSED)
 
 **Sprint Duration:** 2026-05-22 to 2026-06-05 (2 weeks)  
-**Sprint Goal:** Ship production-ready AZMaps-MCP v1.0.0 with 7 primitive tools  
+**Sprint Goal:** Deploy operational MCP service that other agents can discover and call  
 **Created:** 2026-05-22  
+**Refocused:** 2026-05-22 (user directive: operational service over polish)  
 **Created By:** Ralph (Work Monitor)  
 **Authority:** Squad Meeting Decision (morpheus-v1-reboot-squad-meeting.md)
 
@@ -10,72 +11,88 @@
 
 ## Executive Summary
 
-**Status:** 🟢 Ready to Execute
+**Status:** 🟢 Ready to Execute (REFOCUSED)
 
-**Context:** Squad research confirms the existing codebase is 90% complete with validated architecture. V1 requires 5 tactical improvements, not a reboot. All work items are well-scoped, parallelizable, and achievable within 2-week timeline.
+**Refocus Rationale:** Original sprint prioritized polish (logging, parameters, health probes) over proving operational capability. **New focus: Get the MCP service running and callable by other agents FIRST, polish LATER.**
 
-**Sprint Objectives:**
-1. Complete 5 tactical improvements (Week 1)
-2. Execute integration testing and validation (Week 2)
-3. Deploy to production Container Apps
-4. Release v1.0.0 with full documentation
+**NEW Sprint Objectives (Priority Order):**
+1. **Deploy Container Apps** — Get the service running in Azure (critical path)
+2. **Verify MCP Protocol** — Prove other agents can discover tools and invoke them
+3. **End-to-End Validation** — Real agent calls Azure Maps via our MCP service
+4. **Document Known Limitations** — What works, what doesn't, what's coming in v1.1
+
+**DEPRIORITIZED to V1.1:**
+- Structured logging (console.log is fine for v1.0)
+- Parameter enhancements (defaults work, optimization can wait)
+- API version audit (current versions work, update in v1.1)
+- Health probes (Container Apps default probes sufficient for v1.0)
 
 **Critical Success Factors:**
-- Parallel execution Week 1 (no blocking dependencies)
-- Daily sync-ups to detect blockers early
-- Testing gates enforced before production deployment
-- Brady validation before v1.0.0 tag
+- Container Apps deployment succeeds (unblocks everything else)
+- MCP service is reachable and responds to `/list_tools`
+- At least 3 tools proven working end-to-end (geocode, route, static map)
+- Other Copilot agents can successfully call our service
 
 ---
 
-## Sprint Backlog
+## Sprint Backlog (REFOCUSED)
 
 ### WI-001: Container Apps Deployment Fix
 
-**Priority:** P0 (Critical Path)  
+**Priority:** P0 (CRITICAL PATH - NOTHING WORKS WITHOUT THIS)  
 **Assignee:** Neo (Infrastructure Specialist)  
 **Estimate:** 2 days (16 hours)  
 **Status:** 🔴 Not Started
 
 **Problem Statement:**  
-Container Apps deployment archived after RBAC/Log Analytics failures. Need working deployment to `rg-azmaps-mcp-dev` for integration testing.
+MCP service cannot be operational until Container Apps deployment succeeds. Previous deployment failed with RBAC/Log Analytics errors. This is the #1 blocker.
 
 **Acceptance Criteria:**
-- [ ] Bicep template in `infra/stable/3-container-apps/` compiles without errors
-- [ ] RBAC role assignments correct (AcrPull for Managed Identity)
-- [ ] Log Analytics workspace linked to Container Apps
-- [ ] Deployment succeeds: `az containerapp show --name azmaps-mcp --resource-group rg-azmaps-mcp-dev`
-- [ ] Container starts successfully (logs show "MCP Server running")
-- [ ] Health probe endpoint returns HTTP 200
+- [ ] Container Apps deployed to `rg-azmaps-mcp-dev`
+- [ ] Service is reachable at public FQDN: `https://ca-azmaps-mcp-dev.<region>.azurecontainerapps.io`
+- [ ] Container starts successfully (logs show "MCP Server running on port 3000")
+- [ ] Health check works: `curl https://<fqdn>/` returns HTTP 200 or valid MCP response
+- [ ] Docker image pulled from ACR successfully (AcrPull role working)
 
 **Technical Details:**
 
-**Known Issues to Fix:**
+**SIMPLIFIED APPROACH - Skip Non-Essentials:**
 ```bicep
-// 1. Add Managed Identity
-resource containerAppIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: 'id-azmaps-mcp-${environment}'
+// Minimum viable Container Apps deployment
+// Skip: Custom health probes, complex monitoring, advanced RBAC
+// Focus: Get it running, prove it works
+
+resource managedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: 'id-azmaps-mcp-dev'
   location: location
 }
 
-// 2. Grant AcrPull role to Managed Identity
-resource acrPullRoleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+// Grant AcrPull to Managed Identity
+resource acrPullRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   scope: containerRegistry
-  name: guid(containerRegistry.id, containerAppIdentity.id, 'AcrPull')
+  name: guid(containerRegistry.id, managedIdentity.id, 'AcrPull')
   properties: {
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d') // AcrPull
-    principalId: containerAppIdentity.properties.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')
+    principalId: managedIdentity.properties.principalId
     principalType: 'ServicePrincipal'
   }
 }
 
-// 3. Link Log Analytics workspace
-resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' existing = {
-  name: 'log-azmaps-mcp-${environment}'
+// Simple Log Analytics (use existing if available, create minimal if not)
+resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
+  name: 'log-azmaps-mcp-dev'
+  location: location
+  properties: {
+    sku: {
+      name: 'PerGB2018'
+    }
+    retentionInDays: 30
+  }
 }
 
-resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' = {
-  name: 'cae-azmaps-mcp-${environment}'
+// Container Apps Environment (minimal config)
+resource containerAppEnv 'Microsoft.App/managedEnvironments@2023-05-01' = {
+  name: 'cae-azmaps-mcp-dev'
   location: location
   properties: {
     appLogsConfiguration: {
@@ -87,117 +104,523 @@ resource containerAppEnvironment 'Microsoft.App/managedEnvironments@2023-05-01' 
     }
   }
 }
-```
 
-**Dependencies:**
-- ACR deployed ✅ (azmapsmcp.azurecr.io)
-- Azure Maps deployed ✅ (maps-azmaps-mcp-dev)
-- Docker image pushed ✅ (azmaps-mcp:latest)
-
-**Testing Validation:**
-```powershell
-# Verify deployment
-az containerapp show --name azmaps-mcp --resource-group rg-azmaps-mcp-dev --query "properties.provisioningState"
-
-# Check logs
-az containerapp logs show --name azmaps-mcp --resource-group rg-azmaps-mcp-dev --tail 50
-
-# Test health endpoint
-$fqdn = az containerapp show --name azmaps-mcp --resource-group rg-azmaps-mcp-dev --query "properties.configuration.ingress.fqdn" -o tsv
-curl https://$fqdn/health
-```
-
-**Deliverables:**
-1. `infra/stable/3-container-apps/container-apps.bicep` (updated)
-2. `infra/stable/3-container-apps/container-apps.bicepparam` (updated)
-3. `infra/stable/3-container-apps/README.md` (troubleshooting guide)
-4. Deployment validation report
-
-**Risk Level:** 🟡 Medium (RBAC permissions can be tricky, but well-documented)
-
----
-
-### WI-002: Health Probes Implementation
-
-**Priority:** P0 (Critical Path)  
-**Assignee:** Trinity (Backend Specialist)  
-**Estimate:** 4 hours  
-**Status:** 🔴 Not Started
-
-**Problem Statement:**  
-Container Apps requires `/health` endpoint for liveness checks. Without it, unhealthy instances won't be restarted automatically.
-
-**Acceptance Criteria:**
-- [ ] `/health` HTTP endpoint implemented in `src/server.ts`
-- [ ] Returns HTTP 200 when healthy, HTTP 503 when unhealthy
-- [ ] Includes Azure Maps connectivity check
-- [ ] Returns JSON response with status + timestamp + checks
-- [ ] Container Apps Bicep updated with health probe configuration
-- [ ] Integration test added: `tests/integration/health.test.ts`
-
-**Technical Details:**
-
-**Implementation:**
-```typescript
-// src/server.ts
-
-import express from 'express';
-import { AzureMapsClient } from './lib/azure-maps-client.js';
-
-const app = express();
-const azureMapsClient = new AzureMapsClient(
-  process.env.AZURE_MAPS_ENDPOINT!,
-  process.env.AZURE_MAPS_API_KEY!
-);
-
-// Health probe endpoint
-app.get('/health', async (req, res) => {
-  const checks = {
-    azureMaps: 'unknown' as 'healthy' | 'unhealthy' | 'unknown'
-  };
-
-  // Test Azure Maps connectivity (lightweight ping)
-  try {
-    const testResult = await azureMapsClient.get('/search/address/json', {
-      'api-version': '2026-01-01',
-      query: 'Seattle',
-      limit: 1
-    });
-    checks.azureMaps = testResult ? 'healthy' : 'unhealthy';
-  } catch (error) {
-    checks.azureMaps = 'unhealthy';
-  }
-
-  const health = {
-    status: checks.azureMaps === 'healthy' ? 'healthy' : 'unhealthy',
-    timestamp: new Date().toISOString(),
-    checks
-  };
-
-  const statusCode = health.status === 'healthy' ? 200 : 503;
-  res.status(statusCode).json(health);
-});
-
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Health endpoint available at http://localhost:${PORT}/health`);
-});
-```
-
-**Bicep Update:**
-```bicep
-// infra/stable/3-container-apps/container-apps.bicep
-
+// Container App (minimal viable config)
 resource containerApp 'Microsoft.App/containerApps@2023-05-01' = {
-  name: 'ca-azmaps-mcp-${environment}'
+  name: 'ca-azmaps-mcp-dev'
   location: location
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${managedIdentity.id}': {}
+    }
+  }
   properties: {
+    managedEnvironmentId: containerAppEnv.id
     configuration: {
       ingress: {
         external: true
         targetPort: 3000
         transport: 'http'
+        allowInsecure: false
+      }
+      registries: [
+        {
+          server: '${acrName}.azurecr.io'
+          identity: managedIdentity.id
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'azmaps-mcp'
+          image: '${acrName}.azurecr.io/azmaps-mcp:latest'
+          env: [
+            {
+              name: 'AZURE_MAPS_ENDPOINT'
+              value: 'https://atlas.microsoft.com'
+            }
+            {
+              name: 'AZURE_MAPS_API_KEY'
+              secretRef: 'maps-api-key'
+            }
+            {
+              name: 'PORT'
+              value: '3000'
+            }
+          ]
+          resources: {
+            cpu: json('0.5')
+            memory: '1Gi'
+          }
+        }
+      ]
+      scale: {
+        minReplicas: 1  // Keep warm for MCP agent access
+        maxReplicas: 3
+      }
+    }
+  }
+}
+
+output fqdn string = containerApp.properties.configuration.ingress.fqdn
+```
+
+**Testing Validation:**
+```powershell
+# 1. Verify deployment exists
+az containerapp show --name ca-azmaps-mcp-dev --resource-group rg-azmaps-mcp-dev
+
+# 2. Get FQDN
+$fqdn = az containerapp show --name ca-azmaps-mcp-dev --resource-group rg-azmaps-mcp-dev --query "properties.configuration.ingress.fqdn" -o tsv
+Write-Host "Service FQDN: https://$fqdn"
+
+# 3. Test basic connectivity
+curl https://$fqdn/
+
+# 4. Check logs for startup
+az containerapp logs show --name ca-azmaps-mcp-dev --resource-group rg-azmaps-mcp-dev --tail 50
+```
+
+**Deliverables:**
+1. Working `infra/stable/3-container-apps/container-apps.bicep` (simplified)
+2. Successful deployment to `rg-azmaps-mcp-dev`
+3. FQDN documented in `.squad/reports/deployment-fqdn.md`
+4. Basic connectivity test results
+
+**Risk Level:** 🟡 Medium (RBAC can be tricky, but simplified approach reduces surface area)
+
+---
+
+### WI-002: MCP Protocol Verification
+
+**Priority:** P0 (PROVE IT WORKS AS MCP SERVICE)  
+**Assignee:** Trinity (MCP Specialist)  
+**Estimate:** 4 hours  
+**Status:** 🔴 Not Started  
+**Dependencies:** WI-001 (needs deployed service)
+
+**Problem Statement:**  
+We have code that implements MCP, but we've never proven another agent can discover and call our tools via MCP protocol. Need to verify the service is MCP-compliant and discoverable.
+
+**Acceptance Criteria:**
+- [ ] MCP protocol endpoint responds: `GET https://<fqdn>/` returns valid MCP server metadata
+- [ ] Tool discovery works: MCP client can call `tools/list` and get 7 tool definitions
+- [ ] Tool invocation works: MCP client can call `tools/call` with `maps_search_address` and get results
+- [ ] Error handling works: Invalid tool name returns proper MCP error envelope
+- [ ] Documentation created: "How to connect to AZMaps-MCP service"
+
+**Technical Details:**
+
+**Test MCP Protocol Manually:**
+```powershell
+# 1. Verify MCP server info endpoint
+$fqdn = "ca-azmaps-mcp-dev.<region>.azurecontainerapps.io"
+curl https://$fqdn/
+
+# Expected response (MCP server metadata):
+# {
+#   "name": "azmaps-mcp",
+#   "version": "1.0.0",
+#   "capabilities": {
+#     "tools": {}
+#   }
+# }
+
+# 2. List available tools
+curl https://$fqdn/tools/list
+
+# Expected: Array of 7 tool definitions with names, descriptions, inputSchemas
+
+# 3. Invoke a tool
+curl -X POST https://$fqdn/tools/call `
+  -H "Content-Type: application/json" `
+  -d '{
+    "name": "maps_search_address",
+    "arguments": {
+      "address": "Space Needle, Seattle WA"
+    }
+  }'
+
+# Expected: Coordinates for Space Needle
+
+# 4. Test error handling
+curl -X POST https://$fqdn/tools/call `
+  -H "Content-Type: application/json" `
+  -d '{
+    "name": "invalid_tool_name",
+    "arguments": {}
+  }'
+
+# Expected: MCP error envelope with error code
+```
+
+**Verify MCP Client Integration:**
+```typescript
+// Test script using MCP SDK
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+
+const client = new Client({
+  name: 'test-client',
+  version: '1.0.0'
+}, {
+  capabilities: {}
+});
+
+// Connect to our service
+const transport = new StdioClientTransport({
+  command: 'curl',
+  args: [`https://${process.env.AZMAPS_MCP_FQDN}`]
+});
+
+await client.connect(transport);
+
+// List tools
+const tools = await client.listTools();
+console.log(`Found ${tools.length} tools`);
+console.log(tools.map(t => t.name));
+
+// Call geocode tool
+const result = await client.callTool({
+  name: 'maps_search_address',
+  arguments: { address: 'Seattle WA' }
+});
+
+console.log('Geocode result:', result);
+```
+
+**Deliverables:**
+1. Manual test results documented in `.squad/reports/mcp-protocol-verification.md`
+2. MCP client test script in `tests/manual/mcp-client-test.ts`
+3. Connection guide: `docs/CONNECTING_TO_SERVICE.md`
+4. Service endpoint URL documented in README.md
+
+**Risk Level:** 🟢 Low (MCP SDK already implemented, just needs verification)
+
+---
+
+### WI-003: End-to-End Agent Integration
+
+**Priority:** P0 (PROVE OTHER AGENTS CAN USE IT)  
+**Assignee:** Trinity + Brady (User Validation)  
+**Estimate:** 6 hours  
+**Status:** 🔴 Not Started  
+**Dependencies:** WI-001, WI-002 (needs deployed service + verified protocol)
+
+**Problem Statement:**  
+We need proof that GitHub Copilot (or other MCP clients) can discover our service, see the 7 tools, and successfully call them for real travel agent workflows.
+
+**Acceptance Criteria:**
+- [ ] GitHub Copilot workspace configured with AZMaps-MCP connection
+- [ ] Copilot can list tools: User types "@azmaps" and sees 7 tool suggestions
+- [ ] Geocode workflow works: "Find coordinates for Pike Place Market" → Copilot uses maps_search_address
+- [ ] Route workflow works: "Route from Seattle to Portland" → Copilot uses maps_calculate_route
+- [ ] Static map workflow works: "Show map of Space Needle" → Copilot uses maps_render_static_map
+- [ ] Error handling demonstrated: Invalid inputs return helpful error messages
+- [ ] Brady validates: "This is ready for travel agents to use"
+
+**Technical Details:**
+
+**GitHub Copilot MCP Configuration:**
+```json
+// .copilot/mcp-servers.json or similar
+{
+  "mcpServers": {
+    "azmaps": {
+      "url": "https://ca-azmaps-mcp-dev.<region>.azurecontainerapps.io",
+      "description": "Azure Maps integration for geocoding, routing, and mapping"
+    }
+  }
+}
+```
+
+**Test Scenarios (Brady):**
+
+**Scenario 1: Geocoding**
+```
+User: "Find coordinates for Pike Place Market in Seattle"
+
+Expected Flow:
+1. Copilot recognizes location query
+2. Calls @azmaps maps_search_address with "Pike Place Market, Seattle WA"
+3. Returns: { latitude: 47.6097, longitude: -122.3422, formattedAddress: "Pike Place Market, Seattle, WA 98101" }
+4. Copilot presents: "Pike Place Market is at 47.6097, -122.3422"
+```
+
+**Scenario 2: Routing**
+```
+User: "Calculate drive time from Seattle to Portland"
+
+Expected Flow:
+1. Copilot geocodes both cities (maps_batch_geocode or 2x maps_search_address)
+2. Calls @azmaps maps_calculate_route with waypoints
+3. Returns: { totalDistanceMeters: 280000, totalDurationSeconds: 10800 }
+4. Copilot presents: "280 km, about 3 hours"
+```
+
+**Scenario 3: Static Map**
+```
+User: "Show me a map of the Space Needle"
+
+Expected Flow:
+1. Copilot geocodes "Space Needle" (maps_search_address)
+2. Calls @azmaps maps_render_static_map with coordinates + zoom
+3. Returns: Base64-encoded PNG
+4. Copilot displays image inline
+```
+
+**Scenario 4: Error Handling**
+```
+User: "Find address for coordinates 999, 999" (invalid)
+
+Expected Flow:
+1. Copilot calls @azmaps maps_reverse_geocode with invalid coords
+2. Service returns MCP error envelope: { code: 'INVALID_COORDINATES', message: 'Latitude must be between -90 and 90' }
+3. Copilot presents: "Those coordinates are invalid. Please check your input."
+```
+
+**Deliverables:**
+1. GitHub Copilot configuration documented
+2. Test scenarios executed and results recorded in `.squad/reports/agent-integration-validation.md`
+3. Brady sign-off: "Ready for travel agents" ✅ or feedback for v1.1
+4. Screen recordings of successful workflows (optional but nice)
+
+**Risk Level:** 🟡 Medium (Depends on Copilot's MCP client implementation, which we don't control)
+
+---
+
+### WI-004: Documentation & Known Limitations
+
+**Priority:** P1 (SET EXPECTATIONS)  
+**Assignee:** Scribe + Trinity  
+**Estimate:** 4 hours  
+**Status:** 🔴 Not Started  
+**Dependencies:** WI-001, WI-002, WI-003 (needs validation results)
+
+**Problem Statement:**  
+V1.0 is operational but not polished. Need clear documentation of what works, what doesn't, and what's coming in v1.1 so users have realistic expectations.
+
+**Acceptance Criteria:**
+- [ ] README.md updated with service connection details and quick start
+- [ ] LIMITATIONS.md created documenting known issues and workarounds
+- [ ] ROADMAP.md created with v1.1 planned improvements
+- [ ] API reference generated (tool names, parameters, response formats)
+- [ ] Troubleshooting guide created (common errors and fixes)
+
+**Technical Details:**
+
+**README.md Updates:**
+```markdown
+# AZMaps-MCP
+
+Azure Maps MCP Server - Geocoding, routing, and mapping tools for AI agents.
+
+## 🚀 Quick Start
+
+**Service URL:** `https://ca-azmaps-mcp-dev.<region>.azurecontainerapps.io`
+
+**GitHub Copilot Configuration:**
+```json
+{
+  "mcpServers": {
+    "azmaps": {
+      "url": "https://ca-azmaps-mcp-dev.<region>.azurecontainerapps.io"
+    }
+  }
+}
+```
+
+**Available Tools:**
+- `maps_search_address` — Geocode address to coordinates
+- `maps_batch_geocode` — Batch geocoding (array of addresses)
+- `maps_reverse_geocode` — Reverse geocode coordinates to address
+- `maps_search_nearby` — Find nearby POIs
+- `maps_calculate_route` — Multi-waypoint routing
+- `maps_get_timezone` — Get timezone for coordinates
+- `maps_render_static_map` — Generate static map image
+
+## ✅ What Works (v1.0)
+
+- All 7 primitive tools functional
+- Real-time geocoding and routing
+- Static map generation with pins
+- Error handling with retryable hints
+- Deployed on Azure Container Apps (always-warm)
+
+## ⚠️ Known Limitations (v1.0)
+
+See [LIMITATIONS.md](LIMITATIONS.md) for details:
+- Console logging only (no structured logs in v1.0)
+- No parameter defaults optimization (v1.1)
+- Static map route overlay has edge cases (18/73 tests)
+- Health probe is basic (no deep Azure Maps connectivity check)
+- API versions not audited (using working versions, formal audit in v1.1)
+
+## 🗺️ Roadmap (v1.1+)
+
+See [ROADMAP.md](ROADMAP.md) for planned improvements.
+```
+
+**LIMITATIONS.md:**
+```markdown
+# Known Limitations — V1.0
+
+## Logging
+
+**Issue:** Service uses console.log, not structured JSON logging.
+
+**Impact:** Harder to query logs in Azure Monitor.
+
+**Workaround:** Use Azure Monitor's text search. Structured logging coming in v1.1 (WI-003-V1.1).
+
+**Timeline:** v1.1 (1-2 weeks after v1.0)
+
+---
+
+## Parameter Defaults
+
+**Issue:** Tools don't have token-optimized defaults.
+
+**Impact:** Agents may request more data than needed (e.g., 100 POIs when 10 would suffice).
+
+**Workaround:** Explicitly specify parameters in agent prompts (e.g., "find 5 restaurants").
+
+**Timeline:** v1.1 (maxResults, outputLevel parameters - WI-004-V1.1)
+
+---
+
+## Static Map Route Overlay
+
+**Issue:** Route overlay has 18 edge cases failing (unicode addresses, polar coordinates, ocean routes).
+
+**Impact:** Some routes render without path line (waypoint pins only).
+
+**Workaround:** Use maps_calculate_route for route data + maps_render_static_map with pins only.
+
+**Timeline:** v1.1 or v2.0 (requires Azure Maps API deep dive)
+
+---
+
+## Health Probe
+
+**Issue:** Health endpoint doesn't test Azure Maps connectivity.
+
+**Impact:** Service may report "healthy" even if Azure Maps API is down.
+
+**Workaround:** Monitor logs for Azure Maps errors.
+
+**Timeline:** v1.1 (deep health checks - WI-002-V1.1)
+
+---
+
+## API Versions
+
+**Issue:** API versions not formally audited.
+
+**Impact:** May be using older API versions without latest features.
+
+**Workaround:** Current versions work correctly (tested in integration suite).
+
+**Timeline:** v1.1 (API version audit - WI-005-V1.1)
+```
+
+**ROADMAP.md:**
+```markdown
+# Roadmap
+
+## V1.1 (Planned: June 2026)
+
+**Goal:** Polish operational service based on v1.0 user feedback
+
+**Work Items:**
+- Structured logging with Winston (WI-003-V1.1, 6 hours)
+- Parameter enhancements: maxResults, outputLevel (WI-004-V1.1, 4 hours)
+- API version audit and update (WI-005-V1.1, 4 hours)
+- Deep health probes with Azure Maps connectivity (WI-002-V1.1, 4 hours)
+- Performance optimization based on production metrics
+
+**Timeline:** 1-2 weeks after v1.0 release
+
+---
+
+## V2.0 (Planned: Q3 2026)
+
+**Goal:** Advanced features and scale
+
+**Candidate Features:**
+- Real-time traffic integration
+- Interactive maps (not just static images)
+- Route optimization (traveling salesman)
+- Batch operations for all tools (not just geocoding)
+- Caching layer (Redis) for frequently accessed data
+- Multi-region deployment
+- Rate limiting and quota management
+
+**Timeline:** 3-4 months after v1.0 release
+```
+
+**Deliverables:**
+1. Updated README.md with quick start and service URL
+2. LIMITATIONS.md documenting known issues
+3. ROADMAP.md with v1.1 and v2.0 plans
+4. API reference in `docs/API_REFERENCE.md`
+5. Troubleshooting guide in `docs/TROUBLESHOOTING.md`
+
+**Risk Level:** 🟢 Low (documentation only, no code changes)
+
+---
+
+## DEPRIORITIZED TO V1.1
+
+The following work items from the original sprint are **DEPRIORITIZED** to v1.1 release. They are valuable improvements but not required for operational service.
+
+### WI-002-V1.1: Health Probes (Deep Checks)
+
+**Original Priority:** P0  
+**NEW Priority:** V1.1  
+**Reason for Deferral:** Container Apps has default health probes. Deep Azure Maps connectivity checks are nice-to-have, not required for v1.0 operational capability.
+
+**What's Good Enough for V1.0:** Default Container Apps liveness probe (TCP port check). If container responds on port 3000, it's considered healthy.
+
+**When to Implement:** After v1.0 ships and we have production metrics showing health probe gaps.
+
+---
+
+### WI-003-V1.1: Structured Logging
+
+**Original Priority:** P1  
+**NEW Priority:** V1.1  
+**Reason for Deferral:** Console.log works for debugging v1.0 issues. Structured JSON logging is optimization, not blocker.
+
+**What's Good Enough for V1.0:** `console.log` statements with timestamps and tool names. Azure Monitor captures text logs.
+
+**When to Implement:** After v1.0 ships and we identify specific log query needs (e.g., "find all failed geocode requests").
+
+---
+
+### WI-004-V1.1: Parameter Enhancements
+
+**Original Priority:** P1  
+**NEW Priority:** V1.1  
+**Reason for Deferral:** Current tools work without defaults. Token optimization is valuable but not required for functional service.
+
+**What's Good Enough for V1.0:** Agents specify parameters explicitly in prompts (e.g., "find 5 restaurants").
+
+**When to Implement:** After v1.0 user feedback shows token waste or poor UX from missing defaults.
+
+---
+
+### WI-005-V1.1: API Version Audit
+
+**Original Priority:** P1  
+**NEW Priority:** V1.1  
+**Reason for Deferral:** Integration tests pass with current API versions. Formal audit is nice-to-have.
+
+**What's Good Enough for V1.0:** Current API versions work (55/73 integration tests passing, 18 failures are edge cases).
+
+**When to Implement:** After v1.0 ships and we want to ensure latest API features are available.
       }
     }
     template: {
@@ -829,570 +1252,333 @@ describe('API Version Compliance', () => {
 
 ---
 
-## Sprint Timeline
+## Sprint Timeline (REFOCUSED)
 
-### Week 1: Foundation Fixes (Parallel Execution)
+### Week 1: Deploy & Verify (May 22-29)
 
-**Days 1-2 (May 22-23):** Infrastructure + Backend Foundation
+**Goal:** Get Container Apps deployed and MCP protocol working
 
-**Neo (Infrastructure):**
-- [ ] Day 1 AM: Debug RBAC role assignments (AcrPull for Managed Identity)
-- [ ] Day 1 PM: Configure Log Analytics workspace linkage
-- [ ] Day 2 AM: Deploy to `rg-azmaps-mcp-dev`, validate deployment
-- [ ] Day 2 PM: Test health endpoint, verify logs streaming
+**Days 1-3 (May 22-24): Container Apps Deployment (WI-001)**
 
-**Trinity (Backend):**
-- [ ] Day 1 AM: Implement `/health` endpoint (WI-002)
-- [ ] Day 1 PM: Set up Winston logger, create abstraction (WI-003)
-- [ ] Day 2 AM: Migrate all console.log statements to logger
-- [ ] Day 2 PM: Add parameter enhancements (maxResults, outputLevel) (WI-004)
+**Neo (Infrastructure - CRITICAL PATH):**
+- [ ] Day 1: Fix Bicep template (Managed Identity + AcrPull role)
+- [ ] Day 2: Fix Log Analytics linkage, deploy to dev
+- [ ] Day 3: Validate deployment, test connectivity
+
+**Trinity (Support):**
+- [ ] Day 1-2: Stand by for troubleshooting
+- [ ] Day 3: Validate service responds to HTTP requests
+
+**Daily Check-ins:** 4:00 PM (Blocker removal only)
+
+**Week 1 Milestone:** Service is deployed and reachable at public FQDN ✅
+
+---
+
+**Days 4-5 (May 25-26): MCP Protocol Verification (WI-002)**
+
+**Trinity (MCP Validation):**
+- [ ] Day 4: Test MCP endpoints (server info, tools/list, tools/call)
+- [ ] Day 4: Write MCP client test script
+- [ ] Day 5: Document connection process, create troubleshooting guide
 
 **Niobe (API Validation):**
-- [ ] Day 1: Audit current API versions, compare against latest stable
-- [ ] Day 2: Update HTTP client with version constants, test all endpoints
+- [ ] Day 4-5: Test all 7 tools manually, verify responses
 
-**Tank (Testing):**
-- [ ] Day 1: Review test coverage for 7 tools, identify gaps
-- [ ] Day 2: Write integration tests for health probes, logger
+**Neo (Monitor):**
+- [ ] Day 4-5: Watch logs for errors, investigate failures
 
-**Daily Sync-Up:** 4:00 PM (15-minute standup)
-- Blockers? Dependencies?
-- What's done? What's next?
+**Week 1 Milestone:** MCP protocol verified, tools discoverable ✅
 
 ---
 
-**Days 3-4 (May 24-25):** Integration & Validation
+### Week 2: Agent Integration & Documentation (May 30 - June 5)
 
-**All Squad:**
-- [ ] Day 3 AM: Code freeze for Week 1 work items
-- [ ] Day 3 PM: Integration testing against deployed Container Apps
-- [ ] Day 4 AM: Bug fixes from integration testing
-- [ ] Day 4 PM: Week 1 retrospective, prepare for Week 2
+**Goal:** Prove other agents can use the service + document limitations
 
-**Key Validation Gates:**
-- [ ] All 7 tools work correctly against real Azure Maps API
-- [ ] Health probes report accurate status
-- [ ] Structured logs visible in Azure Monitor
-- [ ] Parameter enhancements tested with GitHub Copilot
-- [ ] API versions updated and regression tests pass
+**Days 6-8 (May 27-29): End-to-End Agent Integration (WI-003)**
 
-**Deliverables:**
-- Working Container Apps deployment
-- Health probe endpoint operational
-- Structured logging in production
-- Parameter enhancements live
-- API versions up-to-date
+**Trinity + Brady (Agent Testing):**
+- [ ] Day 6: Configure GitHub Copilot to connect to service
+- [ ] Day 6: Test geocode workflow ("Find Pike Place Market")
+- [ ] Day 7: Test route workflow ("Seattle to Portland")
+- [ ] Day 7: Test static map workflow ("Show Space Needle")
+- [ ] Day 8: Test error handling, edge cases
+- [ ] Day 8: Brady sign-off: "Ready for travel agents" or feedback for v1.1
+
+**Morpheus (Review):**
+- [ ] Day 6-8: Review agent test results, identify v1.1 improvements
+
+**Week 2 Checkpoint:** Agent integration proven, Brady validates ✅
 
 ---
 
-### Week 2: Testing, Validation & Release
+**Days 9-10 (June 2-3): Documentation & Known Limitations (WI-004)**
 
-**Days 5-7 (May 26-28):** Comprehensive Testing
+**Scribe + Trinity (Documentation):**
+- [ ] Day 9: Update README.md with quick start
+- [ ] Day 9: Create LIMITATIONS.md documenting v1.0 issues
+- [ ] Day 9: Create ROADMAP.md with v1.1 improvements
+- [ ] Day 10: Create API_REFERENCE.md (tool signatures)
+- [ ] Day 10: Create TROUBLESHOOTING.md (common errors)
 
-**Tank (Testing Lead):**
-- [ ] Day 5: Full integration test suite against production-like environment
-- [ ] Day 6: Performance baseline measurements (geocode <500ms, route <2s)
-- [ ] Day 7: Load testing (100 concurrent requests, verify no crashes)
+**Morpheus (Review):**
+- [ ] Day 10: Final documentation review
 
-**Niobe (API Validation):**
-- [ ] Day 5: End-to-end API validation (all 7 tools with various inputs)
-- [ ] Day 6: Edge case testing (invalid coordinates, missing parameters)
-- [ ] Day 7: Error handling verification (API failures, network issues)
-
-**Trinity (Backend):**
-- [ ] Day 5-7: Bug fixes from testing, code review feedback
-
-**Neo (Infrastructure):**
-- [ ] Day 5-7: Monitor logs, investigate any Container Apps issues
+**Week 2 Milestone:** Documentation complete, expectations set ✅
 
 ---
 
-**Days 8-9 (May 29-30):** Production Readiness Review
+**Days 11-12 (June 4-5): Buffer & Release**
 
-**Morpheus (Lead):**
-- [ ] Day 8 AM: Security audit (API key handling, input validation)
-- [ ] Day 8 PM: Code review (all Week 1 changes)
-- [ ] Day 9 AM: Documentation review (README, API reference, troubleshooting)
-- [ ] Day 9 PM: Production readiness checklist sign-off
-
-**Scribe:**
-- [ ] Day 8: Update README.md with v1.0.0 features
-- [ ] Day 8: Create API reference documentation
-- [ ] Day 9: Write troubleshooting guide
-- [ ] Day 9: Prepare release notes
-
-**Trinity (Backend):**
-- [ ] Day 8-9: Address code review feedback
-
-**Neo (Infrastructure):**
-- [ ] Day 8-9: Production deployment checklist (no secrets in logs, RBAC correct)
-
----
-
-**Days 10-12 (May 31 - June 2):** User Acceptance & Release Prep
-
-**Brady (User Validation):**
-- [ ] Day 10: Test with GitHub Copilot (real travel agent workflows)
-- [ ] Day 11: Provide feedback on UX, parameter defaults, error messages
-- [ ] Day 12: Sign-off for v1.0.0 release
-
-**Squad (Bug Fixes):**
-- [ ] Day 10-11: Address Brady's feedback
-- [ ] Day 12: Final smoke test
+**All Squad (Polish):**
+- [ ] Day 11: Address any last-minute feedback from Brady
+- [ ] Day 11: Final smoke test (all 7 tools)
+- [ ] Day 12: Tag v1.0.0
+- [ ] Day 12: Announce v1.0 operational, link to ROADMAP for v1.1
 
 **Morpheus (Release Manager):**
-- [ ] Day 12 PM: Tag v1.0.0
-- [ ] Day 12 PM: Publish release notes
-- [ ] Day 12 PM: Announce to stakeholders
+- [ ] Day 12: Create GitHub release with v1.0.0 tag
+- [ ] Day 12: Publish release notes highlighting operational status + known limitations
 
 ---
 
-**Day 13-14 (June 3-5):** Buffer Days
+## Success Metrics (REFOCUSED)
 
-**Purpose:** Contingency for unexpected delays, final polish, documentation improvements
+### Functional Success (Binary - Works or Doesn't)
 
-**Activities:**
-- Additional testing if needed
-- Performance optimization if metrics don't meet targets
-- Documentation polish
-- Team retrospective
+- [ ] **Container Apps deployed** — Service running at public FQDN
+- [ ] **MCP protocol working** — Tools discoverable and callable
+- [ ] **3 core tools proven** — Geocode, route, static map end-to-end
+- [ ] **Agent integration validated** — GitHub Copilot successfully uses service
+- [ ] **Brady sign-off** — "Ready for travel agents" ✅
+
+### Performance (Baseline - No Targets Yet)
+
+*Baseline measurements, not goals. Optimization comes in v1.1 after production data.*
+
+- Geocode response time: <TBD>ms average
+- Route response time: <TBD>s average  
+- Static map response time: <TBD>s average
+- Error rate: <TBD>% (track for v1.1 improvement)
+- Uptime: <TBD>% (track for v1.1 SLO definition)
+
+### Documentation Success
+
+- [ ] **README.md** — Quick start with service URL
+- [ ] **LIMITATIONS.md** — Known issues documented
+- [ ] **ROADMAP.md** — V1.1 improvements planned
+- [ ] **API_REFERENCE.md** — Tool signatures documented
+- [ ] **TROUBLESHOOTING.md** — Common errors + fixes
 
 ---
 
-## Definition of Done — V1.0.0 Ready
+## Definition of Done — V1.0 Operational (REFOCUSED)
 
-### Functional Requirements
+### Core Requirements (MUST HAVE)
 
-**All 7 Primitive Tools Operational:**
-- [ ] `maps_search_address` — Geocode address to coordinates
-- [ ] `maps_batch_geocode` — Batch geocoding (array of addresses)
-- [ ] `maps_reverse_geocode` — Reverse geocode coordinates to address
-- [ ] `maps_search_nearby` — POI search by category
-- [ ] `maps_calculate_route` — Multi-waypoint routing
-- [ ] `maps_get_timezone` — Timezone by coordinates
-- [ ] `maps_render_static_map` — Static map generation
-
-**Infrastructure Deployed:**
-- [ ] Azure Container Registry (ACR) operational
-- [ ] Azure Maps Gen2 account deployed
+**Service Deployed:**
 - [ ] Container Apps deployed to `rg-azmaps-mcp-dev`
-- [ ] Docker image pushed and running
-- [ ] Managed Identity configured with AcrPull role
+- [ ] Service is reachable at public FQDN
+- [ ] Docker image running from ACR
+- [ ] Managed Identity + AcrPull role working
+- [ ] Logs streaming to Log Analytics
 
-**Operational Features:**
-- [ ] `/health` endpoint returns HTTP 200 when healthy
-- [ ] Structured logging to Azure Monitor (JSON format)
-- [ ] Parameter enhancements live (maxResults, outputLevel)
-- [ ] API versions updated to latest stable (2026-01-01, 2025-01-01, 2024-04-01)
+**MCP Protocol Working:**
+- [ ] Server metadata endpoint responds: `GET /` returns MCP server info
+- [ ] Tool discovery works: `tools/list` returns 7 tool definitions
+- [ ] Tool invocation works: `tools/call` executes maps_search_address successfully
+- [ ] Error handling works: Invalid requests return MCP error envelopes
 
----
+**Agent Integration Proven:**
+- [ ] GitHub Copilot can connect to service
+- [ ] Geocode workflow validated: User asks for location → Copilot calls maps_search_address
+- [ ] Route workflow validated: User asks for directions → Copilot calls maps_calculate_route
+- [ ] Static map workflow validated: User asks for map → Copilot calls maps_render_static_map
+- [ ] Brady sign-off: "Ready for travel agents to use" ✅
 
-### Quality Requirements
-
-**Test Coverage:**
-- [ ] Unit tests >80% code coverage
-- [ ] Integration tests pass against real Azure Maps API
-- [ ] Performance tests meet targets:
-  - Geocode: <500ms average response time
-  - Route calculation: <2s average response time
-  - POI search: <1s average response time
-- [ ] Load testing: 100 concurrent requests without errors
-- [ ] Error handling tested (invalid inputs, API failures, network issues)
-
-**Code Quality:**
-- [ ] TypeScript strict mode enabled, no compilation errors
-- [ ] ESLint passes with no warnings
-- [ ] Code reviewed by Morpheus (Lead)
-- [ ] No hardcoded secrets (API keys from environment variables)
-- [ ] Error messages user-friendly (no stack traces in tool responses)
-
-**Security:**
-- [ ] API key stored in Azure Key Vault or Container Apps secrets
-- [ ] Input validation on all tool parameters
-- [ ] HTTPS ingress enforced on Container Apps
-- [ ] No sensitive data logged (mask API keys in logs)
-- [ ] Managed Identity used for ACR access (no registry passwords)
+**Documentation Complete:**
+- [ ] README.md updated with service URL and quick start
+- [ ] LIMITATIONS.md documenting known v1.0 issues
+- [ ] ROADMAP.md outlining v1.1 improvements
+- [ ] API_REFERENCE.md with tool signatures
+- [ ] TROUBLESHOOTING.md with common errors
 
 ---
 
-### Documentation Requirements
+### Quality Requirements (WHAT WE'RE TESTING)
 
-**Developer Documentation:**
-- [ ] README.md updated with v1.0.0 features
-- [ ] API reference for all 7 tools (inputs, outputs, examples)
-- [ ] Troubleshooting guide (common errors, solutions)
-- [ ] Architecture diagram (infrastructure components)
-- [ ] Deployment guide (step-by-step Bicep deployment)
+**Functional Testing:**
+- [ ] Integration tests pass for 3 core tools (geocode, route, static map)
+- [ ] Edge cases documented (not necessarily fixed — that's v1.1)
+- [ ] Error handling returns helpful messages
 
-**Operational Documentation:**
-- [ ] Health monitoring guide (interpreting `/health` responses)
-- [ ] Log querying guide (Azure Monitor KQL queries)
-- [ ] Performance tuning guide (scaling, caching strategies)
-- [ ] API version strategy documented
+**Performance Baseline (MEASUREMENT ONLY - NO TARGETS):**
+- [ ] Geocode response time measured and documented
+- [ ] Route response time measured and documented
+- [ ] Static map response time measured and documented
+- [ ] Measurements published as v1.0 baseline (v1.1 will optimize)
 
-**Release Documentation:**
-- [ ] Release notes (new features, improvements, known issues)
-- [ ] Migration guide (if upgrading from previous versions)
-- [ ] Changelog (all changes since last release)
+**Operational Testing:**
+- [ ] Service stays up for 24 hours without crashing
+- [ ] Container Apps scales to 3 replicas under load (manual test)
+- [ ] Logs capture tool invocations (even if unstructured)
 
 ---
 
-### Production Deployment Criteria
+### Acceptable V1.0 State (REALITY CHECK)
 
-**Infrastructure Validation:**
-- [ ] Container Apps deployment successful (`az containerapp show` returns "Succeeded")
-- [ ] Health probes configured (liveness + readiness)
-- [ ] Log Analytics streaming logs
-- [ ] Ingress HTTPS endpoint accessible
-- [ ] minReplicas: 1 configured (zero cold starts)
+**✅ What's GOOD ENOUGH for V1.0:**
 
-**Operational Validation:**
-- [ ] Smoke test: All 7 tools work via GitHub Copilot
-- [ ] Load test: 100 concurrent requests succeed
-- [ ] Failover test: Health probe detects Azure Maps outage
-- [ ] Logging test: Structured logs visible in Azure Monitor
-- [ ] Security scan: No critical vulnerabilities (npm audit)
+1. **Logging:** Console.log is fine. Structured logging is v1.1.
+2. **Health Probes:** Container Apps default TCP check is fine. Deep Azure Maps checks are v1.1.
+3. **Parameters:** Current parameters work. Defaults optimization is v1.1.
+4. **API Versions:** Current versions work (integration tests pass). Formal audit is v1.1.
+5. **Route Overlay:** 18 edge cases fail. Document in LIMITATIONS.md, fix in v1.1 or v2.0.
+6. **Performance:** No specific targets. Measure baseline, optimize in v1.1.
+7. **Scale:** Proof of concept. If 100 agents use it and it's slow, that's v1.1 problem.
 
-**User Acceptance:**
-- [ ] Brady signs off after testing with GitHub Copilot
-- [ ] Travel agent workflows validated (multi-stop itineraries, POI discovery)
-- [ ] Error messages clear and actionable
-- [ ] Response times acceptable for interactive use
+**❌ What's NOT ACCEPTABLE for V1.0:**
 
-**Release Approval:**
-- [ ] Morpheus (Lead) approves production deployment
-- [ ] All Definition of Done items checked
-- [ ] Release notes reviewed and approved
-- [ ] Rollback plan documented (how to revert to previous version)
+1. **Service not deployed** — Nothing else matters if it's not running
+2. **MCP protocol broken** — If agents can't discover/call tools, it's not operational
+3. **Zero tools working** — At least geocode, route, and static map MUST work
+4. **No documentation** — Users need to know what works and what doesn't
+5. **Brady says "not ready"** — If the target user won't use it, delay v1.0
 
 ---
 
-## Risk Assessment
+### Release Readiness Checklist
 
-### Risk 1: Container Apps Deployment Failure
+**Infrastructure:**
+- [ ] Container Apps deployment succeeds
+- [ ] Service FQDN documented and shareable
+- [ ] ACR image pull working (no authentication errors)
+- [ ] Logs visible in Azure Monitor
 
-**Likelihood:** 🟡 Medium  
-**Impact:** 🔴 Critical (blocks all Week 2 testing)
+**Functionality:**
+- [ ] 7 tools defined in MCP protocol
+- [ ] 3 core tools working end-to-end (geocode, route, static map)
+- [ ] Error messages are helpful (not cryptic Azure API errors)
 
-**Description:** Container Apps deployment could fail due to RBAC permissions, Log Analytics configuration, or network issues.
-
-**Mitigation Strategies:**
-1. **Neo focuses on this first** (Day 1-2 priority)
-2. Use stable ACR/Maps infrastructure (already deployed ✅)
-3. Reference working examples from Azure docs
-4. Test in dev environment before production
-5. Fallback: Deploy to Azure Container Instances (ACI) temporarily if Container Apps blocked
-
-**Contingency Plan:**
-- If Container Apps still broken by Day 3 → Switch to ACI for testing
-- Week 2 goal: Get Container Apps working in parallel with testing
-- Worst case: Ship v1 on ACI, migrate to Container Apps in v1.1
-
-**Owner:** Neo  
-**Status Check:** Day 2 EOD (deployment must be working)
-
----
-
-### Risk 2: API Version Breaking Changes
-
-**Likelihood:** 🟢 Low  
-**Impact:** 🟡 Medium (could require tool rewrites)
-
-**Description:** Updating to latest API versions (2026-01-01, 2025-01-01) could introduce breaking changes in response schemas.
-
-**Mitigation Strategies:**
-1. **Niobe reads API docs carefully** (changelog, migration guides)
-2. Comprehensive regression testing after version updates
-3. Test against production Azure Maps API (not mock)
-4. Keep fallback to previous versions if breaking changes detected
-5. Update one API category at a time (Search → Route → Render)
-
-**Contingency Plan:**
-- If breaking changes detected → Document differences, adjust code
-- If too many changes → Keep current stable versions, defer to v1.1
-- Prioritize: Search API (critical), Route API (critical), Render API (nice-to-have)
-
-**Owner:** Niobe  
-**Status Check:** Day 2 EOD (audit complete, changes identified)
-
----
-
-### Risk 3: Performance Targets Not Met
-
-**Likelihood:** 🟢 Low  
-**Impact:** 🟡 Medium (impacts user experience)
-
-**Description:** Performance targets (geocode <500ms, route <2s) may not be achievable due to Azure Maps API latency or network issues.
-
-**Mitigation Strategies:**
-1. **Measure baseline performance early** (Day 5, Tank)
-2. Identify bottlenecks (HTTP client, JSON parsing, logging overhead)
-3. Optimize HTTP client (connection pooling, keep-alive)
-4. Add caching layer if needed (Redis, in-memory LRU)
-5. Set realistic expectations (Azure Maps API latency is out of our control)
-
-**Contingency Plan:**
-- If targets not met → Investigate Azure Maps API latency (Niobe)
-- Add caching for repeated queries (80/20 rule: cache top 20% of queries)
-- Adjust targets if Azure Maps inherently slower (document latency expectations)
-- Consider CDN for static map images (render API)
-
-**Owner:** Tank (performance testing), Trinity (optimization)  
-**Status Check:** Day 6 (performance baseline report due)
-
----
-
-### Risk 4: Brady Unavailable for User Acceptance
-
-**Likelihood:** 🟢 Low  
-**Impact:** 🟡 Medium (delays v1.0.0 release)
-
-**Description:** Brady may be unavailable Day 10-12 for user acceptance testing, blocking release sign-off.
-
-**Mitigation Strategies:**
-1. **Confirm Brady's availability NOW** (before Week 1 starts)
-2. Schedule UAT sessions in advance (Day 10-11, specific times)
-3. Prepare UAT checklist (specific workflows to test)
-4. Record demo video as backup (Brady can review async)
-5. Get interim feedback early (Day 5-6 preview)
-
-**Contingency Plan:**
-- If Brady unavailable → Morpheus signs off based on checklist completion
-- Defer "Brady tested" to v1.0.1 patch release
-- Ship v1.0.0 with squad confidence, gather Brady feedback post-release
-
-**Owner:** Morpheus (coordinate with Brady)  
-**Status Check:** Day 1 (confirm availability)
-
----
-
-### Risk 5: Scope Creep — New Features Requested
-
-**Likelihood:** 🟡 Medium  
-**Impact:** 🟡 Medium (delays v1.0.0 release)
-
-**Description:** During testing, Brady or squad may identify "must-have" features not in v1 scope, creating scope creep.
-
-**Mitigation Strategies:**
-1. **Ruthlessly defend v1 scope** (7 primitives from AD-003)
-2. Maintain v2 backlog for new feature requests
-3. Morpheus enforces scope discipline ("Is this blocking v1 release?")
-4. Use "demand-driven" principle: wait for 3+ user requests before adding
-5. Document feature requests for post-v1 planning
-
-**Contingency Plan:**
-- If "must-have" feature emerges → Assess effort (< 4 hours? Include. > 4 hours? Defer.)
-- If critical bug found → Fix immediately (security, data loss)
-- If nice-to-have improvement → Defer to v1.1
-
-**Owner:** Morpheus (scope gatekeeper)  
-**Status Check:** Continuous (enforce at daily sync-ups)
-
----
-
-## Success Metrics
-
-### Technical Metrics
-
-**Performance:**
-- [ ] Geocode average response time <500ms (p95 <800ms)
-- [ ] Route calculation average response time <2s (p95 <3s)
-- [ ] POI search average response time <1s (p95 <1.5s)
-- [ ] Static map generation <3s (p95 <5s)
-- [ ] Health probe response <100ms
-
-**Reliability:**
-- [ ] Uptime >99.9% (Container Apps minReplicas: 1)
-- [ ] Error rate <1% (API errors, timeouts, crashes)
-- [ ] Health probe success rate >99%
-- [ ] Log streaming 100% operational (no missing logs)
-
-**Quality:**
-- [ ] Unit test coverage >80%
-- [ ] Integration tests pass 100%
-- [ ] Zero critical security vulnerabilities (npm audit)
-- [ ] Zero high-severity bugs at release
-- [ ] Code review approval from Morpheus
-
-**Operational:**
-- [ ] Deployment time <10 minutes (Bicep → running container)
-- [ ] Rollback time <5 minutes (previous Docker image)
-- [ ] Log query response time <2s (Azure Monitor KQL)
-- [ ] Health monitoring dashboards operational
-
----
-
-### User Experience Metrics
-
-**Usability (GitHub Copilot Integration):**
-- [ ] Tool invocation success rate >95% (Copilot successfully calls tools)
-- [ ] Parameter defaults work correctly (no missing required fields)
-- [ ] Error messages actionable (Copilot can self-correct)
-- [ ] Response formats parseable (JSON structure correct)
-
-**Workflow Success:**
-- [ ] Multi-stop itinerary planning works end-to-end
-- [ ] POI discovery returns relevant results
-- [ ] Batch geocoding handles 10+ addresses correctly
-- [ ] Static map generation produces valid images
-
-**Brady Validation:**
-- [ ] Brady signs off after testing (Day 12)
-- [ ] No blocking issues identified in UAT
-- [ ] Feedback incorporated or deferred to v2
-
----
-
-### Sprint Execution Metrics
-
-**Velocity:**
-- [ ] All 5 work items completed Week 1 (WI-001 through WI-005)
-- [ ] Week 2 testing completed on schedule
-- [ ] Zero work items pushed to v1.1
-
-**Team Collaboration:**
-- [ ] Daily sync-ups attended by all squad members
-- [ ] Blockers resolved within 24 hours
-- [ ] Code reviews completed within 4 hours
-- [ ] No merge conflicts or integration issues
+**User Validation:**
+- [ ] Brady tested with GitHub Copilot
+- [ ] At least 2 real-world travel agent workflows proven
+- [ ] Brady sign-off documented
 
 **Documentation:**
-- [ ] README.md updated before release
-- [ ] API reference complete (all 7 tools documented)
-- [ ] Troubleshooting guide published
-- [ ] Release notes approved by Morpheus
+- [ ] README.md published (quick start)
+- [ ] LIMITATIONS.md published (manage expectations)
+- [ ] ROADMAP.md published (what's next)
+- [ ] API_REFERENCE.md published (tool signatures)
+- [ ] TROUBLESHOOTING.md published (how to debug)
+
+**Release Mechanics:**
+- [ ] v1.0.0 tag created
+- [ ] GitHub release published
+- [ ] Release notes highlight: operational status, known limitations, v1.1 roadmap
+---
+
+## Risk Assessment (REFOCUSED)
+
+### Risk 1: Container Apps Deployment Fails Again
+
+**Likelihood:** 🟡 Medium  
+**Impact:** 🔴 CRITICAL (blocks everything)
+
+**Mitigation:**
+- Neo focuses on simplified Bicep template (skip complex features)
+- Use Azure Portal validation before deployment
+- Test RBAC role assignments in isolation
+- **Fallback:** Deploy to Azure Container Instances (ACI) if Container Apps blocked by Day 3
+
+**Owner:** Neo  
+**Checkpoint:** Day 2 EOD — deployment must succeed or trigger fallback
 
 ---
 
-### Post-Release Success Indicators (Week 3+)
+### Risk 2: MCP Protocol Incompatibility
 
-**Adoption:**
-- [ ] Brady uses AZMaps-MCP in production workflows
-- [ ] Zero critical bugs reported in first week
-- [ ] Positive feedback from Brady ("works as expected")
+**Likelihood:** 🟢 Low  
+**Impact:** 🟡 Medium (would require protocol fixes)
 
-**Stability:**
-- [ ] Uptime >99.9% in production
-- [ ] No rollbacks required
-- [ ] Error logs show <1% failure rate
+**Mitigation:**
+- Test with official MCP SDK client (not just curl)
+- Verify JSON-RPC 2.0 compliance
+- Check error envelope format matches spec
 
-**Next Steps:**
-- [ ] V2 scope defined based on Brady feedback
-- [ ] Squad ready for next sprint
-- [ ] Lessons learned documented for future projects
+**Owner:** Trinity  
+**Checkpoint:** Day 4 EOD — protocol verified or issues documented
 
 ---
 
-## Daily Sync-Up Format
+### Risk 3: GitHub Copilot Can't Connect
 
-**Time:** 4:00 PM daily (15 minutes max)  
-**Format:** Standup (no sitting, stay focused)
+**Likelihood:** 🟢 Low  
+**Impact:** 🟡 Medium (would require alternative validation)
 
-**Each Squad Member Reports:**
+**Mitigation:**
+- Test with multiple MCP clients (not just Copilot)
+- Fallback: Use MCP SDK test client for validation
+- Document connection process thoroughly
 
-1. **What I completed today:**
-   - Specific work items or tasks
-   - Blockers resolved
-
-2. **What I'm working on next:**
-   - Tomorrow's priorities
-   - Dependencies on others
-
-3. **Blockers or risks:**
-   - What's blocking progress?
-   - Need help from other squad members?
-
-**Morpheus Tracks:**
-- Sprint burn-down (work items remaining)
-- Risk status changes
-- Decisions needed
-
-**Ralph Reports:**
-- GitHub issues/PRs status
-- Board health (untriaged, in-progress, ready for merge)
+**Owner:** Trinity + Brady  
+**Checkpoint:** Day 6 EOD — at least one agent successfully connected
 
 ---
 
-## Work Item Assignments
+### Risk 4: Brady Unavailable for Validation
 
-| Work Item | Assignee | Estimate | Status | Due Date |
-|-----------|----------|----------|---------|----------|
-| WI-001: Container Apps Deployment | Neo | 2 days | 🔴 Not Started | May 23 EOD |
-| WI-002: Health Probes | Trinity | 4 hours | 🔴 Not Started | May 22 EOD |
-| WI-003: Structured Logging | Trinity | 6 hours | 🔴 Not Started | May 23 EOD |
-| WI-004: Parameter Enhancements | Trinity | 4 hours | 🔴 Not Started | May 23 EOD |
-| WI-005: API Version Audit | Niobe | 4 hours | 🔴 Not Started | May 23 EOD |
+**Likelihood:** 🟢 Low  
+**Impact:** 🟢 Low (can use recorded demos)
 
-**Total Estimated Effort:** 3.75 days (Week 1)  
-**Available Capacity:** 4 days (Week 1)  
-**Buffer:** 0.25 days (6 hours)
+**Mitigation:**
+- Confirm Brady availability NOW
+- Record demo videos as backup
+- Morpheus can sign off based on checklist if needed
 
----
-
-## Sprint Deliverables Checklist
-
-**Week 1 (Foundation Fixes):**
-- [ ] Working Container Apps deployment (Neo)
-- [ ] Health probe endpoint operational (Trinity)
-- [ ] Structured logging in production (Trinity)
-- [ ] Parameter enhancements live (Trinity)
-- [ ] API versions updated (Niobe)
-- [ ] Integration tests passing (Tank)
-
-**Week 2 (Testing & Release):**
-- [ ] Full integration test suite complete (Tank)
-- [ ] Performance baseline established (Tank)
-- [ ] Security audit passed (Morpheus)
-- [ ] Documentation complete (Scribe)
-- [ ] Brady UAT sign-off (Brady)
-- [ ] Release notes published (Scribe)
-- [ ] v1.0.0 tagged and deployed (Morpheus)
+**Owner:** Morpheus  
+**Checkpoint:** Day 1 — confirm Brady's schedule
 
 ---
 
-## Approval & Sign-Off
+## Work Item Assignments (REFOCUSED)
 
-**Sprint Plan Created By:** Ralph (Work Monitor)  
+| Work Item | Assignee | Estimate | Priority | Status |
+|-----------|----------|----------|----------|--------|
+| WI-001: Container Apps | Neo | 2 days | P0 (CRITICAL) | 🔴 Not Started |
+| WI-002: MCP Protocol Verification | Trinity | 4 hours | P0 (BLOCKING) | 🔴 Not Started |
+| WI-003: Agent Integration | Trinity + Brady | 6 hours | P0 (VALIDATION) | 🔴 Not Started |
+| WI-004: Documentation | Scribe + Trinity | 4 hours | P1 (POLISH) | 🔴 Not Started |
+
+**Total Effort:** ~3.5 days  
+**Available Time:** 2 weeks  
+**Buffer:** Substantial (use for debugging, polish, v1.1 planning)
+
+---
+
+## Approval & Next Steps
+
+**Sprint Plan Refocused By:** Squad (Coordinator)  
 **Date:** 2026-05-22  
-**Authority:** Squad Meeting Decision (morpheus-v1-reboot-squad-meeting.md)
+**Authority:** User directive: "Refocus Sprint 1 on an operational MCP service that can execute Azure Maps calls from other agents"
 
-**Awaiting Approval From:** Brady  
-**Approval Criteria:**
-- Sprint scope aligns with squad meeting outcomes
-- Timeline is realistic (2 weeks)
-- Work items are well-defined and actionable
-- Risks are identified with mitigation strategies
-- Success metrics are clear and measurable
+**Key Changes from Original Plan:**
+1. **NEW FOCUS:** Operational service callable by agents (not polish)
+2. **DEPRIORITIZED:** Health probes, structured logging, parameter enhancements, API version audit → v1.1
+3. **NEW WORK ITEMS:** MCP protocol verification, agent integration testing
+4. **REALITY CHECK:** Console.log is fine, default params are fine, current API versions are fine for v1.0
 
-**Upon Approval:**
-- Ralph activates work monitoring loop
-- Squad members begin Week 1 work items
-- Daily sync-ups begin (4:00 PM)
-- Progress tracked in this document (update status daily)
+**Next Actions:**
 
----
+1. **Ralph:** Present refocused sprint to Brady for approval
+2. **Upon Approval:** Ralph activates work monitoring loop, Neo starts WI-001 immediately
+3. **Daily Check-ins:** 4:00 PM (blocker removal only, not status updates)
+4. **Week 1 Goal:** Service deployed + MCP protocol working
+5. **Week 2 Goal:** Agent integration proven + documentation complete
 
-## Notes for Brady
-
-**Key Questions for Review:**
-
-1. **Timeline:** Is 2 weeks realistic given your availability for UAT (Day 10-12)?
-2. **Scope:** Are the 5 tactical improvements the right priorities, or should we adjust?
-3. **Success Metrics:** Are the performance targets (geocode <500ms, route <2s) acceptable?
-4. **Definition of Done:** Any missing criteria for "v1.0.0 ready"?
-5. **Risk Assessment:** Are we missing any major risks?
-
-**Adjustments Requested:**
-- [ ] (Brady to fill in after review)
-
-**Approval Status:**
-- [ ] ✅ Approved — Proceed with sprint
-- [ ] ⚠️ Approved with changes — See "Adjustments Requested"
-- [ ] ❌ Rejected — Rework required
-
-**Approved By:** _______________________  
-**Date:** _______________________
+**Ready to Execute:** Yes ✅ (pending Brady approval)
 
 ---
 
-**END OF SPRINT PLAN**
+**END OF REFOCUSED SPRINT PLAN**
