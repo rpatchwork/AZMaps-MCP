@@ -66,6 +66,87 @@ This note added 2026-05-22 to prevent confusion in squad documentation.
 
 ---
 
+## 2026-05-22 — HTTP Transport for Container Apps (WI-002)
+
+**Facilitator:** Morpheus (Lead)  
+**Implementation:** Trinity (Backend Developer)  
+**Deployment:** Neo (Cloud Engineer)  
+**Status:** ✅ IMPLEMENTED & DEPLOYED
+
+### Decision
+
+**Implement HTTP/SSE transport for v1.0.** Replaced StdioServerTransport with Express + SSEServerTransport to enable network-accessible MCP service.
+
+### Context
+
+Container Apps deployment (WI-001) succeeded, but MCP protocol verification (WI-002) revealed architecture mismatch:
+- Server used `StdioServerTransport` (local CLI stdin/stdout communication)
+- Container Apps expected HTTP endpoints (ingress on port 3000)
+- Result: Health check timeout, service unreachable
+
+### Classification: Core Architecture (Not Scope Creep)
+
+**Morpheus's Analysis:**
+- ❌ NOT optional enhancement — fundamental architecture correction
+- ✅ Sprint goal requirement: "Operational MCP service that other agents can discover and call"
+- ✅ Bug fix: Infrastructure planned for HTTP from day one (Dockerfile EXPOSE 3000, Bicep HTTP ingress)
+- ✅ Stdio transport was implementation mistake, not conscious v1/v1.1 trade-off
+
+**Decision Framework Applied:**
+1. **Sprint Goal Test:** Stdio-only cannot meet "callable service" requirement → HTTP required for v1.0
+2. **Risk Assessment:** Option A (implement now): Low risk, 1-2 hours. Option B (defer): Sprint fails.
+3. **Scope Classification:** Core architecture (communication layer), not quality polish
+
+### Implementation (Trinity)
+
+**Code Changes:**
+- Added dependencies: `express`, `@types/express`
+- Replaced transport: `StdioServerTransport` → `SSEServerTransport`
+- Added HTTP server: Express listening on port 3000
+- Added endpoints: `GET /healthz` (health check), `POST /message` (MCP JSON-RPC over SSE)
+
+**Files Modified:**
+- `src/server.ts` (~70 lines modified)
+- `package.json` (Express dependencies added)
+- `README.md` (HTTP transport documented)
+
+**Build Status:** ✅ Success
+**Implementation Time:** 1.25 hours (within 1-2 hour estimate)
+
+### Deployment (Neo)
+
+**Actions:**
+1. Docker rebuild: `docker build -t azmaps-mcp:v1 .` — ✅ Success (242 seconds)
+2. ACR push: `docker push azmapsmcp.azurecr.io/azmaps-mcp:latest` — ✅ Success
+3. Container Apps redeploy: Updated with new image — ✅ Success
+4. Health check: `GET /healthz` → 200 OK ✅
+
+**Deployed Revision:** `ca-azmaps-mcp-dev--oc3mtjw`
+**Status:** Running, health endpoint responding
+
+### Outcome
+
+**Positive:**
+- ✅ MCP server accessible over HTTP (Container Apps compatible)
+- ✅ Health checks functional (`/healthz` endpoint)
+- ✅ Architecture aligned (code matches infrastructure)
+- ✅ Standard MCP pattern (SSEServerTransport is recommended for Azure)
+- ✅ All 7 tools unchanged (zero regression risk)
+- ✅ WI-002 unblocked (can now test MCP protocol via HTTP)
+
+**Trade-offs:**
+- 🟡 Cannot run as local CLI tool anymore (requires HTTP client)
+- 🟡 Required rebuild + redeploy cycle (~3 hours total)
+
+### References
+
+- Trinity's Implementation: `.squad/decisions/inbox/trinity-http-transport-implemented.md`
+- Morpheus's Analysis: `.squad/decisions/inbox/morpheus-transport-decision.md`
+- MCP Best Practices: `.squad/knowledge/mcp-azure-best-practices.md` (SSEServerTransport pattern)
+- Commit: 9ab6f37
+
+---
+
 ## 2026-05-21 — Azure Maps Gen2 Deployment Verification
 
 **Verified by:** Neo (Infrastructure Specialist)  

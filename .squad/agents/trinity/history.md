@@ -198,6 +198,81 @@ app.listen(PORT, () => { ... });
 **Files Modified:**
 - `src/server.ts` (~70 lines changed: removed stdio, added HTTP/Express/SSE)
 - `package.json` (added express, @types/express dependencies)
+- `README.md` (updated with HTTP transport architecture)
+
+**Next Steps:**
+- **Neo:** Dockerfile health check update, rebuild, push to ACR, redeploy
+- **Trinity (WI-002 Phase 2):** Resume MCP protocol verification via HTTP after deployment
+- **Tank:** Integration test all 7 tools over HTTP after deployment
+
+**Decision Rationale:**
+- Sprint goal requires network-accessible service (stdio = CLI-only)
+- Infrastructure planned HTTP from day one (Dockerfile, Bicep)
+- Low complexity, high value (1-2 hours to unblock sprint)
+- Standard MCP pattern (SSEServerTransport for Azure)
+
+**Implementation Time:** ~1 hour (analysis + code + build + docs)  
+**Commit:** 9ab6f37
+
+**What Was Learned:**
+
+**1. Transport Selection = Core Architecture**
+- Not a feature/polish trade-off — fundamental communication layer
+- Deployment model dictates transport type:
+  - StdioServerTransport: Local CLI tools (process spawns, stdin/stdout pipes)
+  - SSEServerTransport: Network-accessible services (Azure hosting)
+- Container Apps HTTP ingress REQUIRES HTTP transport
+
+**2. Architecture Validation Checklist**
+Before deployment, verify alignment:
+- ✅ Transport type matches hosting model
+- ✅ Port numbers consistent (Dockerfile EXPOSE, Bicep ingress, server.listen)
+- ✅ Health check paths match (Dockerfile, Bicep probes, server endpoint)
+- ✅ Environment variables aligned
+
+**3. MCP SDK Integration Patterns**
+- `SSEServerTransport` is standard for Azure Container Apps/Functions
+- Express integration straightforward (~30 lines)
+- Error handling should wrap `transport.connect()` calls
+- Health endpoints separate from MCP endpoints
+
+**4. Low-Risk High-Value Decision Framework**
+When evaluating "implement now vs defer":
+- Foundation bugs (transport mismatch): ALWAYS fix immediately
+- Quality enhancements (logging, params): Can defer if foundation works
+- Sprint goal test: If removal makes goal unachievable → v1.0 requirement
+
+---
+
+### 2026-05-22: WI-002 Deployment Success — HTTP Transport Live ✅
+
+**Status:** ✅ DEPLOYED (Neo completed redeploy)  
+**Revision:** `ca-azmaps-mcp-dev--oc3mtjw`  
+**Endpoint:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+
+**Deployment Timeline (Neo):**
+- Docker rebuild: 242 seconds (~4 minutes)
+- ACR push: 118 seconds (~2 minutes)
+- Container Apps redeploy: 120 seconds (~2 minutes)
+- Health verification: 2 minutes
+- **Total:** ~12 minutes
+
+**Verification Results:**
+- ✅ Health endpoint: `GET /healthz` → 200 OK (<100ms)
+- ✅ Container health probes: Passing continuously
+- ✅ Zero container restarts
+- ✅ Clean rollout (100% traffic to new revision)
+
+**Next Phase: WI-002 Protocol Verification**
+- Tool discovery: `POST /message` with `tools/list` method
+- Tool invocation: Test all 7 tools over HTTP
+- Error handling: Verify error envelopes work over HTTP
+- Performance: Measure round-trip latency
+
+**References:**
+- Orchestration Log: `.squad/orchestration-log/2026-05-22T15-00-trinity-wi002.md`
+- Deployment Log: `.squad/orchestration-log/2026-05-22T15-10-neo-wi002.md`
+- Decision: `.squad/decisions/decisions.md` (HTTP Transport section)
 - `README.md` (added Architecture section documenting HTTP transport)
 
 **What Works:**

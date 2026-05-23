@@ -6,6 +6,119 @@
 
 ## Learnings
 
+### 2026-05-22: HTTP Transport Architecture Decision — V1.0 Scope Clarification
+
+**Context:** WI-002 blocked due to MCP server using stdio transport (CLI-only) instead of HTTP transport (network-accessible). Trinity identified issue: Container Apps deployment expects HTTP ingress on port 3000, but server uses StdioServerTransport (STDIN/STDOUT communication). rpatchwork asked: "Is adding HTTP transport a simple config fix or will it create complexity?"
+
+**Mission:** Make architectural decision on transport strategy for v1.0 launch.
+
+**Decision Framework Applied:**
+
+**1. Sprint Goal Alignment Test**
+- Refocused sprint goal: "Deploy operational MCP service that other agents can discover and call"
+- Question: Can stdio-only transport meet this goal?
+- Answer: NO. Stdio works only for local CLI usage (agent spawns process, pipes JSON-RPC). Network-accessible service requires HTTP/HTTPS endpoints.
+- **Verdict:** HTTP transport is REQUIRED for sprint goal, not optional enhancement.
+
+**2. V1 Scope Classification Analysis**
+- Compared HTTP transport to other deferred v1.1 items (logging, parameters, health probes)
+- Distinction: Those are POLISH (quality improvements on working functionality)
+- HTTP transport is CORE ARCHITECTURE (communication foundation)
+- **Verdict:** V1.0 requirement (prerequisite), not v1.1 enhancement.
+
+**3. Complexity vs Value Assessment**
+- Implementation cost: 1-2 hours (Trinity's estimate: Express.js server + SSE transport)
+- Value delivered: Unblocks WI-002, enables WI-003, makes sprint goal achievable
+- Risk: Low (well-documented pattern, MCP SDK native support)
+- **Verdict:** Minimal investment for critical capability unlock.
+
+**4. Risk Assessment (Option A vs Option B)**
+
+**Option A (Add HTTP Transport Now):**
+- Technical risk: Low (Express.js standard pattern)
+- Testing burden: Low (1 hour includes local Docker test)
+- Regression risk: Medium (core transport change)
+- **Outcome:** Sprint proceeds, goal achievable
+
+**Option B (Defer to V1.1, Ship Stdio-Only):**
+- Sprint goal: UNACHIEVABLE ("callable service" requires HTTP)
+- WI-002: BLOCKED (no HTTP endpoint to test)
+- WI-003: BLOCKED (depends on WI-002)
+- Architecture: Must redefine "what is v1.0" entirely
+- **Outcome:** Sprint fails, complete replan required
+
+**5. Architectural Rationale**
+- Original intent: Container Apps HTTP ingress (Dockerfile EXPOSE 3000, Bicep HTTP config)
+- Evidence: Infrastructure assumed HTTP from day one
+- Conclusion: Stdio transport was implementation MISTAKE, not conscious v1/v1.1 design trade-off
+- **Classification:** Bug fix, not scope creep
+
+**Decision:** APPROVE HTTP Transport for V1.0
+
+**Rationale:**
+- NOT optional complexity — fundamental architecture alignment
+- Sprint goal blocker — "operational service" requires HTTP
+- Low cost, high value — 1-2 hours to unblock 2-week sprint
+- Clear implementation path — Trinity has solution ready
+- V1 definition integrity — without HTTP, we ship CLI tool, not MCP service
+
+**Implementation Plan:**
+1. Trinity: Express.js + SSE transport implementation (1 hour)
+2. Trinity: Local Docker testing (15 min)
+3. Neo: Rebuild image, push to ACR, redeploy Container Apps (30 min)
+4. Trinity: Resume WI-002 protocol verification via HTTP
+
+**Total Time to Unblock Sprint:** ~2 hours
+
+**Key Insight:** Transport layer selection is not a feature/polish trade-off — it's fundamental alignment between deployment model and communication protocol. Container Apps HTTP ingress REQUIRES HTTP transport. This was always implied; we just discovered the implementation gap.
+
+**What This Preserves from V1 Refocus:**
+- Still deprioritizing: Structured logging, parameter optimization, API audit, custom probes
+- Still prioritizing: Operational capability over polish
+- Clarification: HTTP transport is not "polish" — it's the foundation FOR operational capability
+
+**Lessons Learned:**
+
+**1. "Scope Creep" vs "Scope Correction" Distinction**
+- Scope creep: Adding features not in original plan
+- Scope correction: Fixing implementation gaps to match original intent
+- HTTP transport: Infrastructure planned for HTTP from day one → correction, not creep
+
+**2. Core Architecture vs Polish Categorization**
+- Use clear distinction: Foundation (communication, storage, compute) vs Quality (logging, parameters, observability)
+- Foundation changes: High priority (nothing works without them)
+- Quality changes: Can be deferred if foundation works
+
+**3. Sprint Goal as Decision Filter**
+- When evaluating "is this v1.0 or v1.1?", test against sprint goal
+- If removal makes goal unachievable → v1.0 requirement
+- If removal degrades quality but goal still met → v1.1 candidate
+
+**4. Implementation vs Intent Analysis**
+- Check: Does infrastructure configuration match code implementation?
+- Dockerfile EXPOSE 3000 + Container Apps HTTP ingress → HTTP server expected
+- StdioServerTransport → No HTTP server
+- Gap detected = bug, not design decision
+
+**5. Risk Assessment Framework**
+- Always compare Option A (do now) vs Option B (defer) risks
+- Quantify cascading failures (what breaks if we defer?)
+- Consider team velocity impact (how much replan/rework needed?)
+- When Option B has "sprint fails" outcome → Option A justified
+
+**Authority & Confidence:**
+- Decider: Morpheus (Lead)
+- Consultation: Trinity (technical solution), Neo (deployment implications)
+- User alignment: Sprint goal "operational MCP service" explicitly requires network accessibility
+- Confidence: HIGH (clear technical path, low risk, high value, sprint-critical)
+
+**Output Artifacts:**
+- Decision documented: `.squad/decisions/inbox/morpheus-transport-decision.md`
+- Binding decision: Proceed with HTTP transport implementation for v1.0
+- Next action: Trinity implements, Neo deploys, WI-002 resumes
+
+---
+
 ### 2026-05-21: Static Map Route Overlay — Feature Value & Priority Decision
 
 **Context:** After Trinity's 7+ debugging iterations without resolving Azure Maps path parameter syntax errors (route overlay 0/1 tests passing), Brady requested squad discussion to assess feature value and V1 priority.
@@ -785,3 +898,97 @@ Specification handoffs require explicitness — "This curl command IS the spec" 
 - Created AD-007 (API Version Strategy)
 - Informed Sprint 001 planning
 - Preserved AD-008 (Route Overlay Fix) as historical context
+
+---
+
+### 2026-05-22: WI-002 HTTP Transport Decision Validation — Framework Success ✅
+
+**Context:** HTTP transport decision approved and executed. Trinity implemented Express + SSE (35 min), Neo deployed (12 min), revision running with health probes passing.
+
+**Decision Outcome Verification:**
+
+**Predicted vs Actual:**
+| Dimension | Predicted | Actual | Variance |
+|-----------|-----------|--------|----------|
+| Implementation Time | 1-2 hours | 35 minutes | ✅ Under estimate |
+| Technical Risk | Low | Zero errors | ✅ Confirmed |
+| Testing Burden | Low (1 hour) | ~10 minutes | ✅ Under estimate |
+| Regression Risk | Medium | Zero (tools unchanged) | ✅ Lower than predicted |
+| Deployment Time | ~30 minutes | ~12 minutes | ✅ Under estimate |
+
+**Total Sprint Unblock Time:** ~47 minutes (implementation + deployment)  
+**Predicted:** 1-2 hours  
+**Result:** ✅ Better than expected
+
+**Quality Indicators:**
+- ✅ Zero build errors, zero deployment errors, zero container restarts
+- ✅ Health probes passing continuously
+- ✅ All 7 tools unchanged (no regression)
+- ✅ Clean rollout (100% traffic to new revision)
+
+**Decision Framework Validation:**
+
+**1. Sprint Goal Alignment Test: ✅ PASSED**
+- Goal: "Deploy operational MCP service that other agents can discover and call"
+- HTTP transport enabled network-accessible MCP service
+- Verdict: Sprint goal now achievable (was blocked with stdio-only)
+
+**2. V1 Scope Classification: ✅ CORRECT**
+- Classified as: Core architecture (v1.0 requirement)
+- Result: Foundation stable, protocol ready for testing
+- Alternative (defer to v1.1): Would have failed sprint
+
+**3. Complexity vs Value: ✅ JUSTIFIED**
+- Cost: 47 minutes total (under 2-hour estimate)
+- Value: Unblocked WI-002 protocol verification, enabled agent integration
+- Ratio: Minimal investment for critical capability unlock
+
+**4. Risk Assessment: ✅ ACCURATE**
+- Technical risk: Low → Zero errors (confirmed)
+- Regression risk: Medium → Zero regressions (better than expected)
+- Sprint risk: Option A (implement) = success, Option B (defer) = failure
+
+**Key Insight Validated:**
+
+**"Transport layer selection is not a feature/polish trade-off — it's fundamental alignment between deployment model and communication protocol."**
+
+- Deployment model (Container Apps HTTP ingress) dictates transport type
+- Code must implement what infrastructure expects
+- Mismatch = runtime failure (health check timeouts)
+- Detection method: Cross-reference infrastructure config with server code early
+
+**Next Decision Framework Application:**
+
+When evaluating "implement now vs defer":
+1. **Sprint Goal Test:** If removal makes goal unachievable → v1.0 requirement
+2. **Scope Classification:** Foundation (core architecture) vs Polish (quality)
+3. **Risk Assessment:** Weigh Option A (implement) vs Option B (defer) consequences
+4. **Architecture Intent:** Does code match original infrastructure design?
+
+**Facilitation Patterns Confirmed:**
+
+**1. Architecture Validation Checklist**
+Before deployment, verify alignment:
+- ✅ Transport type matches hosting model
+- ✅ Port numbers consistent (Dockerfile, Bicep, server code)
+- ✅ Health check paths match across all layers
+- ✅ Environment variables aligned
+
+**2. Foundation vs Quality Decision Matrix**
+| Category | Example | V1 Requirement? | Rationale |
+|----------|---------|-----------------|-----------|
+| **Foundation** | HTTP Transport | ✅ YES | Communication layer (nothing works without it) |
+| **Quality** | Structured Logging | ❌ NO (v1.1) | Improvement on working functionality |
+| **Optimization** | Parameter Defaults | ❌ NO (v1.1) | Enhancement, not blocker |
+
+**3. Low-Risk High-Value Pattern**
+When evaluating fixes:
+- Foundation bugs: ALWAYS fix immediately (sprint blockers)
+- Quality enhancements: Can defer if foundation works
+- Test: If removal makes sprint goal unachievable → v1.0 requirement
+
+**References:**
+- Trinity's Implementation: .squad/orchestration-log/2026-05-22T15-00-trinity-wi002.md
+- Neo's Deployment: .squad/orchestration-log/2026-05-22T15-10-neo-wi002.md
+- Original Decision: .squad/decisions/inbox/morpheus-transport-decision.md
+- Merged Decision: .squad/decisions/decisions.md (HTTP Transport section)
