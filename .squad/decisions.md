@@ -982,3 +982,101 @@ pathParam = `lc${lineColor}|lw${lineWidth}||${coords}`;
 | maps_render_static_map | GET /map/static/png | 2024-04-01 | ✅ Working |
 
 **Outcome:** V1 scope strategically sound. API coverage complete for travel agent use cases.
+
+---
+
+## WI-004 Documentation Complete (2026-05-24)
+
+**Date:** 2026-05-24T18:15:00Z  
+**Status:** ✅ Complete (Part 1 and Part 2)  
+**Sprint:** Sprint 001 Day 3  
+**Work Item:** WI-004 Documentation
+
+### Part 1: README, LIMITATIONS, ROADMAP (Scribe)
+
+**Duration:** ~45 minutes  
+**Deliverables:**
+- **README.md** (updated) — V1.0 status, 7 tools, Quick Start, architecture, deployment
+- **LIMITATIONS.md** (created) — Known issues, deferred features, out-of-scope items
+- **ROADMAP.md** (created) — V1.0 shipped, V1.1-V2.0 plans, feature request process
+
+**Key Content:**
+- V1.0 status badge (operational, 7 tools, production-ready)
+- All 7 tools documented with descriptions
+- Quick Start cURL examples (tools/list, tools/call)
+- Production endpoint: `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- Test coverage: 87/87 unit (100%), 55/73 integration (75%)
+- 18 route overlay edge cases documented
+- Console.log logging noted as limitation (v1.1)
+- `:latest` tag caching workaround documented
+- V1.1 target: June 2026 (SSE, structured logging, health probes)
+- "Not in Scope" clarity: traffic incidents, weather, isochrone, route matrix
+
+**Documentation Quality:**
+- Professional, concise, factual tone
+- No unexplained jargon
+- Working code examples
+- Cross-references between docs
+- All facts verified from source
+
+**Metrics:**
+- ~4800 words total documentation
+- 2 files created, 1 file updated
+
+### Part 2: API Reference (Trinity)
+
+**Duration:** ~90 minutes  
+**Deliverable:** **API-REFERENCE.md** (~15KB, 1000+ lines)
+
+**Content:**
+- Complete MCP schema definitions for all 7 tools
+- Real request/response examples from production (WI-003 validation)
+- Error handling matrices with retryability guidance
+- Token efficiency tips for Copilot optimization
+- JSON-RPC 2.0 protocol compliance
+- MCP client integration examples (TypeScript SDK)
+- Rate limiting, authentication, health check docs
+
+**Tools Documented:**
+1. maps_search_address — Forward geocoding
+2. maps_batch_geocode — Batch geocoding (up to 100 addresses)
+3. maps_reverse_geocode — Reverse geocoding
+4. maps_search_nearby — POI/place search
+5. maps_calculate_route — Multi-waypoint routing
+6. maps_get_timezone — Timezone lookup
+7. maps_render_static_map — Static map generation
+
+**Per-Tool Documentation Structure:**
+- Purpose and use case
+- Azure Maps REST API endpoint and version
+- Complete JSON Schema (MCP format)
+- Real request/response examples
+- Error code table (code, description, retryable, HTTP status)
+- Usage notes and best practices
+
+**Key Features:**
+- Real production examples (Microsoft campus, Space Needle)
+- Token efficiency guidance (response size estimates)
+- Error classification (retryable flags)
+- Copilot-friendly parameter descriptions
+- JSON-RPC 2.0 standard error codes documented
+
+**Outcome:** Complete developer reference for integrating with AZMaps-MCP V1.0
+
+### Combined Impact
+
+**Documentation Package:**
+- README.md — First-time user onboarding
+- LIMITATIONS.md — Sets expectations, prevents surprises
+- ROADMAP.md — Future visibility, feature request guidance
+- API-REFERENCE.md — Developer integration guide
+
+**Quality Standards Met:**
+- Clear, professional, factual
+- Working code examples
+- Cross-referenced
+- Production-verified details
+- No placeholders or TBDs
+
+**Total Effort:** ~2 hours (Scribe 45 min + Trinity 90 min)  
+**Value:** Production-ready documentation for V1.0 launch
