@@ -194,6 +194,48 @@ Travel agents can:
 
 ---
 
+## 2026-05-24 — WI-003 Transport Architecture Decision
+
+**Date:** 2026-05-24  
+**Status:** Implemented  
+**Decider:** Morpheus  
+**Implementer:** Trinity  
+**Deployer:** Neo
+
+### Context
+
+WI-003 integration testing discovered critical blocker: SSE transport from WI-002 established connections but never processed JSON-RPC messages. MCP clients could not discover or invoke tools. Sprint goal at risk.
+
+### Decision
+
+**Switch to HTTP-only request-response transport** for V1.0. Defer SSE streaming to V1.1.
+
+### Rationale
+
+**Sprint Goal Alignment:** All 7 V1 tools are synchronous request-response operations. No tool requires streaming, progressive responses, or long-lived connections. HTTP-only transport is sufficient for sprint goal.
+
+**V1 Scope Classification:** SSE streaming is optimization (V1.1), not functional requirement (V1.0). Response sizes manageable (<200KB max), latencies acceptable (<5s).
+
+**Complexity vs Value:** HTTP implementation: 2-3 hours. SSE fix: 4-6 hours research + debugging. Equal functional value. Lower risk, faster recovery.
+
+**Risk Assessment:** HTTP = low risk (proven Express.js pattern). SSE = medium risk (protocol lifecycle complexity, session management). SSE failure would cascade to HTTP fallback anyway.
+
+### Implementation Outcome
+
+Trinity completed HTTP-only transport in 1.5 hours with 100% test pass rate:
+- Removed SSE transport, implemented manual JSON-RPC 2.0 router
+- Local validation: 4/4 tests passed (health, tools/list, tools/call, error handling)
+- Neo deployed to production in 15 minutes (learned: Container Apps image caching requires restart)
+- Production validation: All 7 tools operational via HTTP
+
+**Result:** WI-003 recovered same-day. Sprint back on track.
+
+### V1.1 Path
+
+SSE streaming deferred as enhancement when baseline proven. Add as optional transport alongside HTTP if performance data justifies complexity.
+
+---
+
 ## Governance
 
 - All meaningful changes require team consensus
