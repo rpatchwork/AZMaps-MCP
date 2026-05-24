@@ -1,0 +1,154 @@
+{
+  "mcpServers": {
+    "azmaps": {
+      "name": "Azure Maps MCP Server",
+      "description": "Production MCP server providing geocoding, routing, POI search, timezone lookup, and static map generation via Azure Maps Gen2 APIs",
+      "url": "https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io/message",
+      "transport": "http",
+      "protocol": "json-rpc-2.0",
+      "version": "1.0.0",
+      "status": "operational",
+      "healthEndpoint": "https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io/healthz",
+      "capabilities": {
+        "tools": [
+          {
+            "name": "maps_search_address",
+            "description": "Geocode a single address to coordinates",
+            "category": "geocoding",
+            "example": {
+              "address": "1 Microsoft Way, Redmond, WA",
+              "maxResults": 1
+            }
+          },
+          {
+            "name": "maps_batch_geocode",
+            "description": "Geocode multiple addresses in a single request (up to 100)",
+            "category": "geocoding",
+            "example": {
+              "addresses": [
+                "Space Needle, Seattle, WA",
+                "Pike Place Market, Seattle, WA"
+              ]
+            }
+          },
+          {
+            "name": "maps_reverse_geocode",
+            "description": "Convert coordinates to an address",
+            "category": "geocoding",
+            "example": {
+              "latitude": 47.6205,
+              "longitude": -122.3493
+            }
+          },
+          {
+            "name": "maps_search_nearby",
+            "description": "Search for nearby points of interest (POI)",
+            "category": "search",
+            "example": {
+              "latitude": 47.6205,
+              "longitude": -122.3493,
+              "query": "coffee shop",
+              "radius": 1000
+            }
+          },
+          {
+            "name": "maps_calculate_route",
+            "description": "Calculate turn-by-turn driving directions between waypoints",
+            "category": "routing",
+            "example": {
+              "waypoints": [
+                {"latitude": 47.6205, "longitude": -122.3493},
+                {"latitude": 47.6062, "longitude": -122.3321}
+              ]
+            }
+          },
+          {
+            "name": "maps_get_timezone",
+            "description": "Get timezone information for coordinates",
+            "category": "utility",
+            "example": {
+              "latitude": 47.6205,
+              "longitude": -122.3493
+            }
+          },
+          {
+            "name": "maps_render_static_map",
+            "description": "Generate static map image with markers and paths",
+            "category": "rendering",
+            "example": {
+              "center": {"latitude": 47.6205, "longitude": -122.3493},
+              "zoom": 12,
+              "width": 800,
+              "height": 600,
+              "markers": [
+                {
+                  "latitude": 47.6205,
+                  "longitude": -122.3493,
+                  "label": "Start"
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "usage": {
+        "protocol": "MCP JSON-RPC 2.0",
+        "requestFormat": {
+          "jsonrpc": "2.0",
+          "method": "tools/call",
+          "params": {
+            "name": "TOOL_NAME",
+            "arguments": {}
+          },
+          "id": 1
+        },
+        "headers": {
+          "Content-Type": "application/json"
+        }
+      },
+      "rateLimits": {
+        "note": "Azure Maps Gen2 standard rate limits apply",
+        "recommendation": "Cache results when possible for repeated queries"
+      },
+      "documentation": {
+        "readme": "https://github.com/rpatchwork/AZMaps-MCP/blob/main/README.md",
+        "apiReference": "https://github.com/rpatchwork/AZMaps-MCP/blob/main/API-REFERENCE.md",
+        "limitations": "https://github.com/rpatchwork/AZMaps-MCP/blob/main/LIMITATIONS.md"
+      }
+    }
+  },
+  "quickStart": {
+    "testConnection": {
+      "description": "Verify the server is responding",
+      "curl": "curl https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io/healthz"
+    },
+    "listTools": {
+      "description": "Discover all available tools",
+      "request": {
+        "jsonrpc": "2.0",
+        "method": "tools/list",
+        "id": 1
+      }
+    },
+    "exampleCall": {
+      "description": "Geocode Microsoft campus address",
+      "request": {
+        "jsonrpc": "2.0",
+        "method": "tools/call",
+        "params": {
+          "name": "maps_search_address",
+          "arguments": {
+            "address": "1 Microsoft Way, Redmond, WA"
+          }
+        },
+        "id": 2
+      },
+      "expectedResult": {
+        "coordinates": {
+          "lat": 47.641879,
+          "lon": -122.1264715
+        }
+      }
+    }
+  }
+}
