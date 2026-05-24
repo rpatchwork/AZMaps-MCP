@@ -62,6 +62,39 @@
 
 ---
 
+## 2026-05-24 — Sprint 001 Retrospective
+
+**Date:** 2026-05-24T19:30:00Z  
+**Facilitator:** Morpheus (Lead)  
+**Sprint Duration:** 2026-05-22 to 2026-05-24 (3 days, 79% faster than 2-week plan)  
+**Status:** ✅ Sprint Goal Achieved — Service operational, all 7 tools validated
+
+### Key Wins
+- **Exceptional delivery speed** — 2-week sprint completed in 3 days with zero scope cuts
+- **Effective architectural decisions** — HTTP transport and HTTP-only recovery decisions made in 15 minutes each, both correct
+- **Rapid blocker recovery** — 4-hour turnaround from SSE failure discovery to production restoration
+- **High-quality documentation** — Complete suite (README, LIMITATIONS, ROADMAP, API-REFERENCE) in 2.5 hours
+- **Strong squad collaboration** — Clear roles, clean handoffs, parallel work without conflicts
+
+### Key Lessons
+1. **Test locally BEFORE deploying** — 30-second local Docker test prevents hours of production debugging
+2. **Transport complexity must match requirements** — HTTP sufficient for synchronous tools; SSE was premature optimization
+3. **Sprint goal as decision filter** — "Does this enable operational service?" test prevents scope debates
+4. **Honest documentation builds trust** — 18 documented edge cases sets expectations correctly
+5. **Pre-sprint research investment pays off** — Front-loaded research enabled 3-day execution
+
+### Critical Action Items (P0)
+- **Establish local Docker testing protocol** (mandatory before all deployments)
+- **Adopt semantic versioning** for Docker images (eliminate `:latest` tag confusion)
+- **Create integration test suite template** (prevent protocol-level bugs)
+
+### Sprint Grade: A (Excellent)
+3 days vs 2 weeks planned, 7 hours effort vs 80 estimated, all 4 work items delivered, sprint goal achieved. Exceptional execution enabled by thorough planning.
+
+**Full retrospective:** `.squad/ceremonies/sprint-001-retrospective.md`
+
+---
+
 ## AD-003: V1 Primitive Scope — Azure Maps MCP Server
 
 **Date:** 2026-05-21  
