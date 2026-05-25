@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
-import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -248,11 +247,171 @@ app.get('/healthz', (_req, res) => {
   });
 });
 
-// MCP endpoint (JSON-RPC over HTTP with SSE)
+// MCP endpoint (JSON-RPC over HTTP)
 app.post('/message', async (req, res) => {
-  console.log('[SERVER] Received MCP request');
-  const transport = new SSEServerTransport('/message', res);
-  await server.connect(transport);
+  try {
+    const jsonrpcRequest = req.body;
+    
+    // Validate JSON-RPC 2.0 format
+    if (!jsonrpcRequest.jsonrpc || jsonrpcRequest.jsonrpc !== '2.0') {
+      return res.status(400).json({
+        jsonrpc: '2.0',
+        id: jsonrpcRequest.id || null,
+        error: {
+          code: -32600,
+          message: 'Invalid Request: jsonrpc field must be "2.0"'
+        }
+      });
+    }
+
+    const { method, params, id } = jsonrpcRequest;
+
+    // Route to appropriate handler
+    
+    // Handle MCP initialize handshake
+    if (method === 'initialize') {
+      console.log('[SERVER] initialize -> sending server capabilities');
+      const response = {
+        jsonrpc: '2.0',
+        id,
+        result: {
+          protocolVersion: '2024-11-05',
+          capabilities: {
+            tools: {}
+          },
+          serverInfo: {
+            name: 'azmaps-mcp-server',
+            version: '1.0.0'
+          }
+        }
+      };
+      return res.json(response);
+    }
+    
+    // Handle initialized notification (no response needed)
+    if (method === 'notifications/initialized') {
+      console.log('[SERVER] notifications/initialized -> acknowledged');
+      // Notifications don't get responses in JSON-RPC 2.0
+      return res.status(204).send();
+    }
+    
+    if (method === 'tools/list') {
+      // Return list of available tools
+      const response = {
+        jsonrpc: '2.0',
+        id,
+        result: {
+          tools: TOOLS
+        }
+      };
+      console.log(`[SERVER] tools/list -> ${TOOLS.length} tools`);
+      return res.json(response);
+    }
+
+    if (method === 'tools/call') {
+      // Invoke a specific tool
+      const { name, arguments: args } = params;
+      
+      console.log(`[SERVER] tools/call -> ${name}`);
+      
+      try {
+        let toolResult;
+        
+        switch (name) {
+          case 'maps_search_address':
+            toolResult = await handleGeocodeAddress(args, azureMapsClient);
+            break;
+
+          case 'maps_batch_geocode':
+            toolResult = await handleBatchGeocode(args, azureMapsClient);
+            break;
+
+          case 'maps_reverse_geocode':
+            toolResult = await handleReverseGeocode(args, azureMapsClient);
+            break;
+
+          case 'maps_search_nearby':
+            toolResult = await handlePOISearch(args, azureMapsClient);
+            break;
+
+          case 'maps_calculate_route':
+            toolResult = await handleCalculateRoute(args, azureMapsClient);
+            break;
+
+          case 'maps_get_timezone':
+            toolResult = await handleGetTimezone(args, azureMapsClient);
+            break;
+
+          case 'maps_render_static_map':
+            toolResult = await handleRenderStaticMap(args, azureMapsClient);
+            break;
+
+          default:
+            return res.json({
+              jsonrpc: '2.0',
+              id,
+              error: {
+                code: -32601,
+                message: `Method not found: ${name}`
+              }
+            });
+        }
+        
+        // Return MCP-formatted response
+        const response = {
+          jsonrpc: '2.0',
+          id,
+          result: {
+            content: [
+              {
+                type: 'text',
+                text: JSON.stringify(toolResult, null, 2)
+              }
+            ]
+          }
+        };
+        
+        return res.json(response);
+        
+      } catch (toolError) {
+        console.error(`[ERROR] Tool execution failed: ${name}`, toolError);
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          error: {
+            code: -32000,
+            message: toolError instanceof Error ? toolError.message : 'Tool execution failed',
+            data: {
+              toolName: name,
+              retryable: true
+            }
+          }
+        });
+      }
+    }
+
+    // Unknown method
+    return res.json({
+      jsonrpc: '2.0',
+      id,
+      error: {
+        code: -32601,
+        message: `Method not found: ${method}`
+      }
+    });
+
+  } catch (error) {
+    console.error('[ERROR] Request processing failed:', error);
+    return res.status(500).json({
+      jsonrpc: '2.0',
+      id: null,
+      error: {
+        code: -32603,
+        message: 'Internal error',
+        data: error instanceof Error ? error.message : 'Unknown error'
+      }
+    });
+  }
 });
 
 // ============================================================================
@@ -271,7 +430,7 @@ async function main() {
   app.listen(PORT, () => {
     console.log(`[SERVER] MCP Server running on HTTP transport (port ${PORT})`);
     console.log('[SERVER] Endpoints:');
-    console.log(`  - POST /message (MCP JSON-RPC with SSE)`);
+    console.log(`  - POST /message (MCP JSON-RPC over HTTP)`);
     console.log(`  - GET /healthz (health check)`);
     console.log('[SERVER] Ready to receive tool invocations');
   });
