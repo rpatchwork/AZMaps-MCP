@@ -7,7 +7,21 @@ This guide explains how to connect your Clawpilot agent to the AZMaps-MCP servic
 ✅ **Operational**  
 🌐 **Endpoint:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`  
 🔧 **Tools:** 7 available (geocoding, routing, POI search, timezone, static maps)  
-📋 **Protocol:** MCP JSON-RPC 2.0 over HTTP
+📋 **Protocol:** MCP JSON-RPC 2.0 over HTTP (with full handshake support)  
+🔐 **Authentication:** None required (server-side API key handling)
+
+---
+
+## MCP Protocol Handshake
+
+The service implements the complete MCP initialization sequence:
+
+1. **Client sends `initialize`** — Server responds with capabilities
+2. **Client sends `notifications/initialized`** — Server acknowledges (204)
+3. **Client calls `tools/list`** — Server returns available tools
+4. **Client calls `tools/call`** — Server executes tool and returns results
+
+Your Clawpilot agent will handle this handshake automatically.
 
 ---
 

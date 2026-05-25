@@ -6,9 +6,14 @@
       "url": "https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io/message",
       "transport": "http",
       "protocol": "json-rpc-2.0",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "status": "operational",
       "healthEndpoint": "https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io/healthz",
+      "handshake": {
+        "supported": true,
+        "methods": ["initialize", "notifications/initialized", "tools/list", "tools/call"],
+        "protocolVersion": "2024-11-05"
+      },
       "capabilities": {
         "tools": [
           {
