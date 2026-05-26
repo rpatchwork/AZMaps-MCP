@@ -24,6 +24,10 @@ import {
   staticMapTool,
   handleRenderStaticMap,
 } from './tools/static-map.js';
+import {
+  generateLockedMapTool,
+  handleGenerateLockedMap,
+} from './tools/generate-locked-map.js';
 
 // ============================================================================
 // CONFIGURATION
@@ -86,6 +90,7 @@ const TOOLS = [
   routeTool,
   timezoneTool,
   staticMapTool,
+  generateLockedMapTool,
 ];
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -197,6 +202,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
                 null,
                 2
               ),
+            },
+          ],
+        };
+
+      case 'maps_generate_locked_html':
+        return {
+          content: [
+            {
+              type: 'text',
+              text: await handleGenerateLockedMap(args, azureMapsClient),
             },
           ],
         };
@@ -344,6 +359,10 @@ app.post('/message', async (req, res) => {
 
           case 'maps_render_static_map':
             toolResult = await handleRenderStaticMap(args, azureMapsClient);
+            break;
+
+          case 'maps_generate_locked_html':
+            toolResult = await handleGenerateLockedMap(args, azureMapsClient);
             break;
 
           default:
