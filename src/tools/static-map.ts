@@ -10,7 +10,7 @@ import { AzureMapsError } from '../lib/errors.js';
 export const staticMapTool: Tool = {
   name: 'maps_render_static_map',
   description:
-    'Generate a static map image (PNG/JPEG) with optional route overlay and POI markers. Returns base64-encoded image suitable for embedding in documents or displaying to users. Useful for visualizing itineraries.',
+    'Generate a static map image (PNG/JPEG) with optional route overlay and POI markers. Returns base64-encoded image suitable for embedding in documents or displaying to users. ⚠️ URL LENGTH LIMIT: Routes with 100+ waypoints will likely FAIL due to HTTP GET URL size constraints. For large routes (100+ waypoints), use maps_generate_locked_html instead, which bypasses URL limits and generates a complete self-contained HTML file. This tool is for simple, small maps only.',
   inputSchema: {
     type: 'object',
     properties: {

@@ -10,7 +10,7 @@ import { AzureMapsError } from '../lib/errors.js';
 export const generateLockedMapTool: Tool = {
   name: 'maps_generate_locked_html',
   description:
-    'Generate a self-contained, locked (non-interactive) HTML map file with route visualization and labeled markers. IDEAL FOR LARGE ROUTES - prevents API usage after initial load. Returns complete HTML with embedded Azure Maps SDK, transparent compact info panel (top-right), and customizable point labels. Perfect for trip planning, documentation, and static visualizations.',
+    '✅ PREFERRED FOR LARGE ROUTES (100+ waypoints) — Generate a self-contained, locked (non-interactive) HTML map file with route visualization and labeled markers. This tool BYPASSES URL length limits that cause maps_render_static_map to fail on complex routes. Returns complete HTML with embedded Azure Maps SDK, transparent compact info panel (top-right), and customizable point labels. The HTML is self-contained with no external API calls after initial load. Perfect for multi-stop trip planning, complex itineraries, documentation, and route visualization with hundreds of waypoints.',
   inputSchema: {
     type: 'object',
     properties: {
