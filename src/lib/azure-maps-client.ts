@@ -446,11 +446,19 @@ export class AzureMapsClient {
     // WIRE-LEVEL EQUIVALENCE: Replicate Niobe's CORRECTED validated pin format
     // Niobe validated (visual confirmation): pins=default||-122.3321 47.6062 (double pipe, space-separated)
     // Format: pins=default||lon lat||lon lat (double pipe between pins, space-separated coords)
+    // Format with labels: pins=default||'Label Text' lon lat||'Another' lon2 lat2
     // CRITICAL: URLSearchParams encodes space as + (not %20), which Azure Maps rejects
     // Must manually encode space as %20 by building pins parameter separately
     
     const pins = params.pins
-      ?.map((p) => `${p.longitude} ${p.latitude}`)  // Space-separated coords
+      ?.map((p) => {
+        // If pin has a label, format as: 'Label' lon lat
+        // Otherwise just: lon lat
+        if (p.label) {
+          return `'${p.label}' ${p.longitude} ${p.latitude}`;
+        }
+        return `${p.longitude} ${p.latitude}`;
+      })
       .join('||');  // Double pipe between locations
     const pinsParam = pins ? `default||${pins}` : undefined;  // Add style prefix
     const encodedPins = pinsParam?.replace(/ /g, '%20');  // Manually encode space as %20

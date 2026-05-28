@@ -225,13 +225,21 @@ export type TimezoneResult = z.infer<typeof TimezoneResultSchema>;
 // STATIC MAP (maps_render_static_map)
 // ============================================================================
 
+export const PinSchema = z.object({
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+  label: z.string().max(100).optional(), // Optional label text (up to 100 chars)
+});
+
+export type Pin = z.infer<typeof PinSchema>;
+
 export const StaticMapParamsSchema = z.object({
   center: CoordinatesSchema,
   zoom: z.number().min(0).max(20).default(12),
   width: z.number().min(1).max(2048).default(800),
   height: z.number().min(1).max(2048).default(600),
   routeGeometry: z.string().optional(), // Encoded polyline or GeoJSON LineString
-  pins: z.array(CoordinatesSchema).optional(), // POI markers
+  pins: z.array(PinSchema).optional(), // POI markers with optional labels
   format: z.enum(['png', 'jpeg']).default('png'),
 });
 

@@ -10,7 +10,7 @@ import { AzureMapsError } from '../lib/errors.js';
 export const staticMapTool: Tool = {
   name: 'maps_render_static_map',
   description:
-    'Generate a static map image (PNG/JPEG) with optional route overlay and POI markers. Returns base64-encoded image suitable for embedding in documents or displaying to users. ⚠️ URL LENGTH LIMIT: Routes with 100+ waypoints will likely FAIL due to HTTP GET URL size constraints. For large routes (100+ waypoints), use maps_generate_locked_html instead, which bypasses URL limits and generates a complete self-contained HTML file. This tool is for simple, small maps only.',
+    '✅ SUPPORTS LABELED PINS - Generate a static map image (PNG/JPEG) with optional route overlay and labeled POI markers. Pins can include custom text labels (e.g., "Hotel", "Airport", "Start", "End"). Returns base64-encoded image suitable for embedding in documents or displaying to users. ⚠️ URL LENGTH LIMIT: Routes with 100+ waypoints will likely FAIL due to HTTP GET URL size constraints. For large routes (100+ waypoints), use maps_generate_locked_html instead, which bypasses URL limits and generates a complete self-contained HTML file. This tool is for simple, small maps only. PIN LABEL EXAMPLE: [{latitude: 47.6062, longitude: -122.3321, label: "Start"}, {latitude: 47.6205, longitude: -122.3493, label: "Hotel"}]',
   inputSchema: {
     type: 'object',
     properties: {
@@ -50,12 +50,17 @@ export const staticMapTool: Tool = {
       pins: {
         type: 'array',
         description:
-          'Optional array of coordinates for POI markers (e.g., waypoints, hotels)',
+          '✅ LABELED PINS SUPPORTED - Array of POI markers with optional text labels. Each pin can have a "label" property (up to 100 chars) to display custom text on the map. Examples: {latitude: 47.6062, longitude: -122.3321, label: "Hotel"} or {latitude: 45.5231, longitude: -122.6765, label: "Airport"} or unlabeled: {latitude: 40.7128, longitude: -74.0060}',
         items: {
           type: 'object',
           properties: {
             latitude: { type: 'number', minimum: -90, maximum: 90 },
             longitude: { type: 'number', minimum: -180, maximum: 180 },
+            label: {
+              type: 'string',
+              description:
+                'Optional text label to display on the pin (e.g., "Start", "Hotel", "Waypoint 1"). Max 100 characters.',
+            },
           },
           required: ['latitude', 'longitude'],
         },
