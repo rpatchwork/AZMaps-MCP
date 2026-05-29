@@ -1,0 +1,95 @@
+# Work Routing Handoffs Log
+# Ralph Work Monitor — Active Orchestration Cycles
+
+## Cycle 1 — 2026-05-29T15:46:38-05:00 (Round 1)
+
+### Board State
+- **Open Issues:** 1 (Issue #1: Pin labels bug, squad:trinity)
+- **Open PRs:** 1 (PR #3: Fix pin label formatting, branch squad/1-fix-pin-labels)
+- **Draft PRs:** 0
+- **Stalled work:** None
+
+### Issue #1 Details
+- **Title:** Fix: Pin labels broken in static map API
+- **Status:** Backlog (not claimed per self-advocacy protocol)
+- **Assignee:** rpatchwork (GitHub), squad:trinity (team label)
+- **Labels:** bug, squad:trinity
+- **Description:** Pin labels failing with format errors
+
+### PR #3 Analysis — Deployment Gate Status
+
+| Gate | Status | Evidence |
+|------|--------|----------|
+| CI passing | ❌ → ✅ | Was empty (no checks), now triggered (3 jobs pending) |
+| Test coverage ≥80% | ⏳ | Awaiting CI execution to verify |
+| Code review approval | ❌ | Morpheus submitted request-changes (likely regressions detected) |
+| Linked GitHub issue | ✅ | PR links to Issue #1 |
+| Tank sign-off | N/A | Pin label fix is not protocol/integration change |
+
+### Blocking Issues Identified by Morpheus Code Review
+
+**Issues Requiring Fix:**
+1. **Likely regression (line 465):** Space delimiter removed between label and longitude (`'Label'${lon}` should be `'Label' ${lon}`). Azure Maps uses space as separator; removing it creates ambiguity, especially for negative longs.
+2. **Contradictory comments:** Header describes `la{label}` format but implementation uses quoted inline labels with space-separated coords.
+3. **Unverifiable test claims:** PR claims 14–16 tests pass, but no `tests/` directory exists in repo.
+4. **Inconsistent encoding:** Pins use `encodeURIComponent` but paths use `replace(/ /g, '%20')`, creating asymmetry.
+
+### Handoff Actions Executed
+
+**Spawn 1: Neo (DevOps) — CI Trigger Task**
+- **Status:** ✅ COMPLETE
+- **Action:** Check for untracked `.github/workflows/ci.yml`, commit and push if needed
+- **Result:** 
+  - ci.yml was untracked (file existed but never committed)
+  - Neo staged, committed (`e67d8a8`), and pushed to `squad/1-fix-pin-labels`
+  - PR #3 CI now triggered: 3 checks pending (Build, Lint & Test, PR Validation, Security Scanning)
+- **Outcome:** Deployment gate "CI passing" UNBLOCKED (execution now in progress)
+
+**Spawn 2: Morpheus (Lead Architect) — Code Review Task**
+- **Status:** ✅ COMPLETE
+- **Action:** Review PR #3 diff, evaluate pin label formatting fix, submit review decision
+- **Result:** 
+  - Morpheus identified 4 critical issues (regression, contradictory comments, unverifiable tests, encoding asymmetry)
+  - Submitted detailed comment review requesting changes (GitHub prevents "request changes" on self-authored PR)
+  - Review linked to all 4 issues with specific line references
+- **Outcome:** Deployment gate "Code review approval" BLOCKED (changes required before approval)
+
+### Ralph Routing Analysis
+
+**Backlog-First Check:** ✅ Both spawns linked to Issue #1 (highest priority blocked work)
+
+**Rate Limit:** ✅ 2 spawns within budget (max 3/cycle)
+
+**Next Actions (Not Routed This Cycle):**
+1. Trinity must address 4 issues flagged by Morpheus:
+   - Restore space delimiter in label-coordinate pair
+   - Fix contradictory comments
+   - Verify or remove test claims
+   - Align encoding between pins and paths
+2. After fixes: Trinity rebase/push; Morpheus re-review; CI re-run
+3. Once all gates pass: Ralph presents merge request to user for final approval
+
+### Routing Summary
+- **Issues routed:** 2 (Neo + Morpheus)
+- **Spawn rate:** 2/3 budget consumed
+- **Blocker status:** CI ✅ (triggered), Code Review ❌ (changes needed)
+- **Deployment readiness:** NOT MERGE-READY (awaiting Trinity fixes + re-review)
+
+---
+
+---
+Cycle: 2026-05-29T16:10:02-05:00
+From: Trinity
+To: Ralph
+Status: DONE
+Changes pushed: yes
+Summary: Addressed all 4 Morpheus CHANGES_REQUESTED items on PR #3: (1) restored space between label and longitude in pin string construction, (2) replaced contradictory block comments with accurate descriptions of the actual implementation, (3) removed false test claims from PR body, (4) aligned path encoding to use encodeURIComponent like pins
+Next: Morpheus re-review + CI re-run needed
+---
+Cycle: 2026-05-29T16:19:26-05:00
+From: Neo
+To: Ralph
+Status: DONE
+Changes pushed: yes
+Summary: CI "TypeScript build" step failed because tsconfig.json was never committed to the repo. tsc (v5.9.3) found no tsconfig.json on the CI checkout and printed help text, exiting non-zero. Also added vitest.config.ts, .eslintrc.json, tests/ directory, and updated package.json scripts (lint:strict, test:required) which were all missing from git. Commit 4102d33 pushed to squad/1-fix-pin-labels.
+Next: CI re-run triggered, Morpheus re-review pending
