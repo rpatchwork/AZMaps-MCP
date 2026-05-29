@@ -443,26 +443,20 @@ export class AzureMapsClient {
     // GENERATE STATIC MAP (if validation passed)
     // ==========================================================================
     
-    // WIRE-LEVEL EQUIVALENCE: Replicate Niobe's CORRECTED validated pin format
-    // Niobe validated (visual confirmation): pins=default|coFF0000|la1|-122.3321,47.6062
-    // Format: style|modifier1|modifier2|lon,lat|style|lon,lat (single pipes, comma-separated coords)
-    // Label format: la{label} (e.g., la1, laA, laSTART) - NO quotes, NO spaces
-    // CRITICAL: Azure Maps pin format: pinStyle||modifiers|coordinates
-    // - DOUBLE pipe (||) after pin style
-    // - Single pipe (|) between modifiers and coordinates
-    // - Multiple pins joined by double pipe (||)
-    // - Labels MUST be URL-encoded BEFORE joining (spaces, special chars)
-    
     // Build pins parameter
-    // Azure Maps pin format:
-    // - Single pin: default||'label'longitude latitude  OR  default||longitude latitude
-    // - Multiple pins: default||location1|location2|location3 (style appears ONCE, locations separated by single pipe)
+    // Azure Maps static image API pin format (actual implementation):
+    // - Label: 'label' (quoted string) placed BEFORE coordinates with a space separator
+    // - Coordinates: space-separated longitude latitude (e.g., -122.3321 47.6062)
+    // - Single pin with label:    default||'label' longitude latitude
+    // - Single pin without label: default||longitude latitude
+    // - Multiple pins: default||location1|location2|location3 (style prefix ONCE, single pipe between locations)
+    // - Entire pins parameter is encodeURIComponent-encoded before appending to URL
     let pinsParam: string | undefined;
     if (params.pins && params.pins.length > 0) {
       const style = 'default';
       const locations = params.pins.map((p) => {
         if (p.label) {
-          return `'${p.label}'${p.longitude} ${p.latitude}`;
+          return `'${p.label}' ${p.longitude} ${p.latitude}`;
         } else {
           return `${p.longitude} ${p.latitude}`;
         }
@@ -516,10 +510,9 @@ export class AzureMapsClient {
       }
     }
 
-    // Step 2: Encode pins parameter (entire value needs URL encoding)
+    // Step 2: Encode pins and path parameters consistently using encodeURIComponent
     const encodedPins = pinsParam ? encodeURIComponent(pinsParam) : undefined;
-    // Step 3: Path uses manual space replacement per existing pattern
-    const encodedPath = pathParam?.replace(/ /g, '%20');
+    const encodedPath = pathParam ? encodeURIComponent(pathParam) : undefined;
 
     // Build base URL without pins and path, then append them manually
     let url = this.buildUrl('/map/static/png', baseParams);
