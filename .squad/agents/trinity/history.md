@@ -10,6 +10,56 @@
 
 ## Recent Updates
 
+### 2026-05-28: Issue #1 — Pin Labels Broken in Static Map API — CLAIMED ✅
+
+**Status:** 🔴 IN PROGRESS  
+**Issue:** https://github.com/rpatchwork/AZMaps-MCP/issues/1  
+**Priority:** High - Production bug affecting documented feature  
+**Branch:** `fix/issue-1-pin-labels` (pending creation)
+
+**Self-Advocacy Decision:** ✅ CLAIMED — This is 100% in my domain (Backend MCP Server)
+
+**Problem Summary:**
+Labeled pins fail when calling Azure Maps Static Map API through the MCP server.
+
+**Error Message:**
+```
+Invalid format for location value ''1' -103.707807 41.8285904' in longitude.
+Location is expected to be in the format of <longitude latitude>
+```
+
+**Root Causes Identified:**
+1. **Coordinate Delimiter Bug:** Using SPACE instead of COMMA
+   - Current (wrong): `${p.longitude} ${p.latitude}` → `-103.707807 41.8285904`
+   - Correct: `${p.longitude},${p.latitude}` → `-103.707807,41.8285904`
+   
+2. **Pin Format Structure:** Need to validate against Azure Maps API spec
+   - Niobe's validated format: `default|la1|-122.3321,47.6062`
+   - Current implementation may have incorrect pipe separators
+
+**Code Location:** `src/lib/azure-maps-client.ts` lines 468-478 (renderStaticMap function)
+
+**Fix Strategy:**
+1. Change coordinate delimiter from space to comma on line 474
+2. Validate pin format structure matches Azure Maps spec
+3. Run integration test: `npm test -- -t "simple numeric label"`
+4. Iterate if needed based on test results
+
+**ETA:** 30-60 minutes
+
+**Actions Taken:**
+- ✅ Reviewed issue details and code
+- ✅ Added claiming comment to GitHub issue
+- ✅ Updated project status from "Backlog" → "In Progress"
+- 🔲 Create fix branch
+- 🔲 Implement coordinate delimiter fix
+- 🔲 Validate pin format structure
+- 🔲 Run integration tests
+- 🔲 Commit and push fix
+- 🔲 Create PR for review
+
+---
+
 ### 2026-05-24: WI-003 HTTP-Only Transport Implementation — COMPLETE ✅
 
 **Mission:** Replace broken SSE transport with working HTTP-only request-response transport  
@@ -90,6 +140,44 @@ npm run build  # ✅ SUCCESS (no TypeScript errors)
 ---
 
 ## Learnings
+
+### 2026-05-25: Static Map Response Investigation — Field Name Mismatch
+
+**Issue:** User reported empty base64 image (0 characters) from `maps_render_static_map` despite Azure Maps API returning 299151 bytes successfully.
+
+**Investigation Results:**
+- ✅ Azure Maps API: HTTP 200, content-length 299151 bytes, valid buffer
+- ✅ Route simplification: 296 → 150 points (within limits)
+- ✅ Buffer→Base64 conversion: Working correctly in `azure-maps-client.ts` line 499
+- ✅ Response structure: Correct field name `imageBase64` per type schema
+- ❌ Test script bug: Checking for wrong field name `base64Image` instead of `imageBase64`
+
+**Root Cause:** Test script (`test-route-simplification.ps1` line 56) uses incorrect field name:
+```powershell
+$base64Length = $toolResult.data.base64Image.Length  # ❌ Wrong field name
+```
+
+**Correct Field Name (Per Schema):**
+```typescript
+// types.ts line 242
+data: z.object({
+  imageBase64: z.string(),  // ✅ Correct field name
+  contentType: z.string(),
+  sizeBytes: z.number(),
+})
+```
+
+**Verified Across Codebase:**
+1. Type definition (`src/lib/types.ts`): `imageBase64` ✅
+2. Implementation (`src/lib/azure-maps-client.ts`): returns `imageBase64` ✅
+3. Documentation (`API-REFERENCE.md`): shows `imageBase64` ✅
+4. Test script (`test-route-simplification.ps1`): checks `base64Image` ❌
+
+**Conclusion:** This is NOT a bug in the response chain. The base64 conversion works correctly. The test script uses the wrong field name and should be fixed to check `data.imageBase64` instead of `data.base64Image`.
+
+**Action Item:** Update test script to use correct field name.
+
+---
 
 ### Pattern: HTTP-Only Transport for Synchronous MCP Tools
 
@@ -356,6 +444,45 @@ return res.json({
 ```
 
 **Best Practice:** Always include `data` field with context (tool name, retryable flag, etc.)
+
+---
+
+### 2026-05-26: Route Simplification Removal — User Preference for Full Resolution
+
+**Context:** Implemented route coordinate simplification (296 → 150 points) to avoid Azure Maps Static API URL length limits (~4KB). User tested the simplified route overlay and found it worked technically, but lost too much detail for their road trip planning use case.
+
+**User Feedback:** "The simplified route is not useful for their road trip planning - it lost too much detail."
+
+**Decision:** Remove simplification algorithm entirely. User wants full-resolution routes (296 points or more) even if it approaches URL limits.
+
+**Removed Code:**
+1. `MAX_ROUTE_POINTS = 150` constant
+2. Coordinate count check and simplification call (~7 lines)
+3. `simplifyRoute()` private method (~35 lines)
+4. Simplification logging
+
+**Kept Code:**
+- ✅ Enhanced logging (URL length, buffer size) - useful for debugging
+- ✅ GeoJSON LineString parsing and Azure Maps path format conversion
+- ✅ Manual space encoding as %20 (URLSearchParams fix)
+
+**Files Modified:**
+- `src/lib/azure-maps-client.ts` (~42 lines removed)
+
+**Build Verification:**
+```bash
+npm run build  # ✅ SUCCESS (no TypeScript errors)
+```
+
+**Key Insight:** Premature optimization can harm user experience. The simplification worked technically (reduced 296 → 150 points, generated valid map), but sacrificed too much detail for the actual use case (road trip route visualization). User prefers dealing with URL length constraints differently (e.g., POST requests, chunked paths) rather than losing route fidelity.
+
+**Pattern:** When optimizing for technical constraints (URL limits), validate against REAL USER REQUIREMENTS first. A "working" solution that doesn't meet user needs is still wrong.
+
+**Future Consideration:** If Azure Maps Static API rejects requests due to URL length, explore alternatives:
+- POST request method (if supported by Static API)
+- Multiple map tiles stitched together
+- Different Azure Maps API endpoint (e.g., Render API with custom overlays)
+- Don't assume simplification is the answer — ask user what detail level they need
 
 ---
 
@@ -1379,6 +1506,214 @@ After Niobe validates specs, Trinity should:
 3. Compare logged requests to Niobe's curl commands
 4. Verify byte-level equivalence
 5. Only then declare "implementation complete"
+
+---
+
+### 2026-05-26: Sprint 002 — Enhanced Error Handling ✅
+
+**Mission:** Improve error handling to provide actionable context for LLM agents and prevent API-level failures  
+**Status:** ✅ COMPLETE — All 3 work items implemented, tested, documented  
+**Decision:** `.squad/decisions/inbox/trinity-sprint-002-complete.md`
+
+**Sprint Scope:**
+- WI-001: Enhanced Error Context (P1) — 2-4 hours
+- WI-002: Request Size Validation & Large Overlay Handling (P1) — 3 hours
+- WI-003: Error Handling Documentation (P2) — 1-2 hours
+
+**Implementation Summary:**
+
+**WI-001: Enhanced Error Context**
+- Added optional `details` field to `ErrorResponse` schema in types.ts
+- Enhanced `AzureMapsError` class with `details?: Record<string, any>` property
+- Updated error factory functions to populate structured context:
+  - `createInvalidCoordinatesError()`: Calculates specific range violations (e.g., "latitude 95 exceeds [-90, 90]")
+  - `createGeocodeNoResultsError()`: Provides actionable suggestions (verify spelling, simplify query, use country filter)
+  - `createPOINoResultsError()`: Suggests broader categories, increased radius
+- **Result:** Agents now receive parameter-specific error context with actionable remediation steps
+
+**WI-002: Request Size Validation & Large Overlay Handling**
+- Added `OVERLAY_TOO_LARGE` error code to `ErrorCode` enum
+- Created `createOverlayTooLargeError(pointCount, estimatedUrlLength, pinCount)` factory function
+- Implemented pre-flight URL size validation in `renderStaticMap()`:
+  - Parses route geometry GeoJSON to count points
+  - Calculates estimated URL length: `routePoints * 22 + pins * 40 + base`
+  - Validates against 3000 char safety limit (Azure Maps has ~4KB URL limit)
+  - Throws structured error BEFORE API call if exceeded
+- **Result:** Prevents 296-point route issue (estimated ~15KB URL) with pre-flight validation
+
+**WI-003: Error Handling Documentation**
+- Updated API-REFERENCE.md with enhanced error envelope format
+- Documented all 16 error codes with real-world examples:
+  - Geocoding errors (3): GEOCODE_NO_RESULTS, GEOCODE_AMBIGUOUS, INVALID_ADDRESS
+  - Routing errors (2): ROUTE_IMPOSSIBLE, INVALID_WAYPOINTS
+  - POI errors (2): POI_NO_RESULTS, INVALID_CATEGORY
+  - Coordinate errors (2): INVALID_COORDINATES, COORDINATES_OUT_OF_RANGE
+  - Static map errors (1): OVERLAY_TOO_LARGE
+  - Network errors (4): NETWORK_ERROR, RATE_LIMIT_EXCEEDED, AUTHENTICATION_FAILED, SERVICE_UNAVAILABLE
+  - General errors (2): INVALID_INPUT, INTERNAL_ERROR
+- Added "Troubleshooting Common Scenarios" section:
+  - Large route overlay handling (simplify, segment, reduce pins, use dynamic maps)
+  - Address geocoding failures (verify format, simplify, country filter, fallback)
+  - Route calculation failures (check connectivity, adjust avoidance, segment)
+- **Result:** Complete reference for agent developers to handle all error scenarios
+
+**Test Coverage:**
+Created `tests/unit/static-map-validation.test.ts` with 3 test cases:
+- ✅ Reject route with 296 points + 23 pins (exceeds limit)
+- ✅ Accept route with 50 points (within limit)
+- ✅ Edge case: 80 pins only (no route, still exceeds limit)
+- All tests passing (3/3)
+
+**Build Verification:**
+- `npm run build` → 0 TypeScript errors ✅
+- All existing tests still passing (no regressions)
+
+**Files Modified:**
+- `src/lib/types.ts`: Added `details` field to ErrorResponseSchema
+- `src/lib/errors.ts`: Enhanced error classes and factory functions
+- `src/lib/azure-maps-client.ts`: Added pre-flight URL size validation
+- `API-REFERENCE.md`: Complete error documentation rewrite (~400 lines added)
+
+**Files Created:**
+- `tests/unit/static-map-validation.test.ts`: URL size validation test suite
+- `.squad/decisions/inbox/trinity-sprint-002-complete.md`: Sprint summary
+
+**Implementation Time:** ~4.5 hours total
+- WI-001: 1.5 hours (types, errors, factory functions)
+- WI-002: 2 hours (validation logic, error handling, testing)
+- WI-003: 1 hour (documentation, examples, troubleshooting guide)
+
+**What Was Learned:**
+
+**1. Pre-Flight Validation Prevents Cascade Failures**
+- Validating URL size BEFORE calling Azure Maps prevents:
+  - Unnecessary API calls (cost, quota, latency)
+  - HTTP 414 errors that are harder to diagnose
+  - Poor user experience (wait for network round-trip only to fail)
+- Best practice: Validate all known constraints client-side before external API calls
+
+**2. Error Details Field: Backward Compatible Enhancement**
+- Optional `details` field allows incremental adoption:
+  - Existing agents ignore unknown fields (JSON tolerance)
+  - New agents benefit from structured context
+  - No breaking changes to existing error handling
+- Pattern: Add new optional fields rather than versioning error schemas
+
+**3. Parameter-Specific Error Context = Better Agent Decisions**
+- Generic errors: "Invalid coordinates" → Agent retries same input
+- Specific errors: "latitude 95 exceeds [-90, 90]" → Agent corrects parameter
+- Structured suggestions guide agents to correct actions:
+  - "Simplify route geometry" vs "Request failed"
+  - "Try broader category" vs "No results"
+- Investment in error messages reduces agent confusion loops
+
+**4. URL Size Calculations Must Account for Encoding**
+- Route points: ~22 chars per point (lon,lat with separators)
+- Pins: ~40 chars per pin (full coordinate pair + label)
+- Must include base URL length (~200 chars)
+- Safety margin recommended (use 3000 vs actual 4096 limit)
+
+**5. Documentation as Error Prevention**
+- Complete error code reference reduces support burden
+- Real-world examples help agent developers test edge cases
+- Troubleshooting guides accelerate problem resolution
+- Best practices section teaches correct usage patterns
+
+**6. Test-Driven Error Validation**
+- Created failing test FIRST (296 points should error)
+- Implemented validation to make test pass
+- Added edge cases (0 route points, many pins)
+- Tests document expected behavior
+
+**Sprint Execution Pattern:**
+1. Implement work item
+2. Build verification (`npm run build`)
+3. Create/run tests
+4. Move to next work item
+5. Final documentation pass
+6. Sprint summary
+
+**Next Steps:**
+- Neo: Rebuild Docker image with Sprint 002 changes
+- Tank: Validate error handling in integration tests
+- Morpheus: Review error documentation for agent guidance
+
+---
+
+### 2026-05-26: Azure Maps API Research Spike — Large Route Handling
+
+**Mission:** Research Azure Maps capabilities for visualizing large routes (296+ points)  
+**Status:** ✅ COMPLETE — Comprehensive analysis with recommendations  
+**Deliverable:** `.squad/decisions/inbox/trinity-azure-maps-research.md`
+
+**Context:** User has 296-point road trip route. Current Static Map API approaches URL length limits (~4KB). Route simplification (296 → 150 points) removed per user feedback (lost too much detail). Research needed to find alternative approaches.
+
+**Key Findings:**
+
+**1. Static Map API Limitations:**
+- ❌ **No POST endpoint** — only GET requests supported
+- ❌ **URL length hard limit:** ~4KB (browser constraint)
+- ❌ **296 points estimated:** ~15KB URL (exceeds all limits)
+- ✅ **Max image size:** 8192×8192 pixels (not the blocker)
+
+**2. Azure Maps Web SDK Analysis:**
+- ✅ **Can render 296+ points efficiently** (DataSource + LineLayer pattern)
+- ✅ **No coordinate limit** (handles 1000+ points smoothly)
+- ❌ **Cannot export static images server-side** (browser-only, requires DOM/Canvas/WebGL)
+- ⚠️ **HTML artifact pattern possible:** Return HTML template for client-side rendering
+
+**3. Alternative APIs Evaluation:**
+- ❌ **Route API:** No simplification endpoint (returns full geometry)
+- ❌ **Render Tile API:** Not for custom route overlays
+- ❌ **Creator API:** Overkill (designed for persistent custom datasets, additional cost)
+
+**4. Image Stitching Analysis:**
+- ⚠️ **Technically feasible** with sharp library
+- ⚠️ **HIGH COMPLEXITY:** 2-3 days implementation (geospatial calculations, edge cases)
+- ✅ **Sharp recommended:** Production-grade, low memory (~100MB for 4 tiles)
+- ⚠️ **Georeferencing required:** Web Mercator projection, tile grid calculation, alignment
+
+**5. MCP Protocol Considerations:**
+- ✅ **Base64 pattern works:** 299KB PNG → 400KB base64 (within HTTP limits)
+- ❌ **Token cost:** ~100K tokens (unsuitable for LLM processing)
+- ✅ **Clawpilot display:** Current pattern works for visualization use case
+- ⚠️ **Blob Storage URLs:** Alternative for V2 (zero tokens, requires infrastructure)
+
+**Recommended Solutions:**
+
+**Option A: HTML Artifact (Recommended)**
+- Return HTML template with Azure Maps Web SDK code
+- User opens in browser → interactive map with full 296-point detail
+- **Pros:** Zero simplification, works today, 2-4 hours implementation
+- **Cons:** User must manually screenshot if static image needed
+
+**Option B: Segment Route into Multiple Maps**
+- Split 296 points → N segments (<100 points each)
+- Return array of base64 images
+- **Pros:** Uses existing infrastructure, 1 hour implementation
+- **Cons:** Disconnected map segments (poor UX)
+
+**Future Enhancements (V2):**
+1. **Blob Storage URLs** (~1 day): Zero tokens, requires Azure Blob + cleanup job
+2. **Tile Stitching** (~3 days): Sharp library, geospatial calculations, handles arbitrary route sizes
+3. **Dedicated Tool** (~4 hours): `maps_render_dynamic_map_html` (separates static vs dynamic concerns)
+
+**Key Insights:**
+
+**URL Encoding Constraints are Hard Limits:** Browser URL limits (~4KB) are HTTP infrastructure constraints, not soft limits. No workaround exists. Must use POST endpoint or different approach entirely.
+
+**Client-Side Rendering ≠ Server-Side Export:** Web SDK libraries require browser environment (DOM/Canvas/WebGL). Not available in Node.js MCP server without headless browser overhead. Design separate paths: static (server APIs) vs dynamic (client rendering).
+
+**Geospatial Complexity:** Operations like "stitch 4 tiles" require map projections, coordinate transforms, edge case handling. Budget 2-3x initial estimate. Always consult Niobe before geospatial work.
+
+**MCP Response Trade-Offs:** Base64 (simple, 100K tokens) vs Blob URLs (requires infra, zero tokens) vs HTML artifacts (full fidelity, client rendering). Design with `returnFormat` parameter for client choice.
+
+**Research Duration:** ~3 hours
+
+**Next Steps:**
+- User decision: HTML artifact vs segment approach
+- If HTML artifact: Implement `returnFormat` parameter (2-4 hours)
+- If tile stitching: Create detailed implementation plan with Niobe
 
 ---
 
