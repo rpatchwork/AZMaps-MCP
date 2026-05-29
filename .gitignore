@@ -1,7 +1,15 @@
 node_modules/
 dist/
 .env
+.env.local
 *.js.map
+
+# Azure Maps secrets (DO NOT COMMIT)
+*.key
+
+# Bicep compiled output
+*.bicep.json
+
 # Squad: ignore runtime state (logs, inbox, sessions)
 .squad/orchestration-log/
 .squad/log/

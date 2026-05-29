@@ -11,10 +11,14 @@
     "test:unit": "vitest run --dir tests/unit",
     "test:integration": "vitest run --dir tests/integration",
     "test:performance": "vitest run --dir tests/performance",
-    "test:coverage": "vitest run --coverage",
+    "test:coverage": "vitest run --coverage --coverage.thresholds.lines=80 --coverage.thresholds.functions=90 --coverage.thresholds.branches=75 --coverage.thresholds.statements=80",
+    "test:required": "npm run test:unit && npm run test:integration && npm run test:performance",
     "start": "node dist/server.js",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write 'src/**/*.ts'"
+    "lint:strict": "eslint src --ext .ts --max-warnings=0",
+    "format": "prettier --write 'src/**/*.ts'",
+    "precommit": "npm run build && npm run lint:strict && npm run test:required && npm run test:coverage",
+    "verify-dod": "npm run precommit"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -27,12 +31,12 @@
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
-    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/coverage-v8": "^4.1.7",
     "eslint": "^8.0.0",
     "prettier": "^3.0.0",
     "tsx": "^4.0.0",
     "typescript": "^5.3.0",
-    "vitest": "^1.0.0"
+    "vitest": "^4.1.7"
   },
   "engines": {
     "node": ">=20.0.0"

@@ -1,0 +1,62 @@
+{
+  "short_routes": [
+    {
+      "name": "Seattle to Portland",
+      "waypoints": [
+        { "latitude": 47.6062, "longitude": -122.3321 },
+        { "latitude": 45.5152, "longitude": -122.6784 }
+      ],
+      "expected_distance_km": 280,
+      "expected_duration_hours": 3,
+      "tolerance_km": 30,
+      "tolerance_hours": 0.5
+    },
+    {
+      "name": "San Francisco to Los Angeles",
+      "waypoints": [
+        { "latitude": 37.7749, "longitude": -122.4194 },
+        { "latitude": 34.0522, "longitude": -118.2437 }
+      ],
+      "expected_distance_km": 616,
+      "expected_duration_hours": 6,
+      "tolerance_km": 50,
+      "tolerance_hours": 1
+    }
+  ],
+  "multi_stop_routes": [
+    {
+      "name": "West Coast Road Trip",
+      "waypoints": [
+        { "latitude": 47.6062, "longitude": -122.3321 },
+        { "latitude": 45.5152, "longitude": -122.6784 },
+        { "latitude": 37.7749, "longitude": -122.4194 },
+        { "latitude": 34.0522, "longitude": -118.2437 },
+        { "latitude": 32.7157, "longitude": -117.1611 }
+      ],
+      "expected_distance_km": 2000,
+      "expected_duration_hours": 20,
+      "tolerance_km": 200,
+      "tolerance_hours": 3
+    }
+  ],
+  "impossible_routes": [
+    {
+      "name": "Seattle to Hawaii",
+      "waypoints": [
+        { "latitude": 47.6062, "longitude": -122.3321 },
+        { "latitude": 21.3099, "longitude": -157.8581 }
+      ],
+      "description": "Ocean crossing - no road route"
+    }
+  ],
+  "same_location_routes": [
+    {
+      "name": "Seattle to Seattle",
+      "waypoints": [
+        { "latitude": 47.6062, "longitude": -122.3321 },
+        { "latitude": 47.6062, "longitude": -122.3321 }
+      ],
+      "description": "Same start and end"
+    }
+  ]
+}

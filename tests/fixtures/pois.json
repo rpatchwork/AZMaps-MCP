@@ -1,0 +1,75 @@
+{
+  "dense_areas": [
+    {
+      "name": "Times Square, NYC",
+      "latitude": 40.758,
+      "longitude": -73.9855,
+      "category": "restaurant",
+      "radius": 1000,
+      "expected_min_results": 20,
+      "description": "Dense urban area with many restaurants"
+    },
+    {
+      "name": "Downtown Seattle",
+      "latitude": 47.6062,
+      "longitude": -122.3321,
+      "category": "hotel",
+      "radius": 2000,
+      "expected_min_results": 10,
+      "description": "City center with many hotels"
+    }
+  ],
+  "sparse_areas": [
+    {
+      "name": "Rural Montana",
+      "latitude": 46.8797,
+      "longitude": -110.3626,
+      "category": "restaurant",
+      "radius": 5000,
+      "expected_max_results": 5,
+      "description": "Rural area with few POIs"
+    }
+  ],
+  "category_tests": [
+    {
+      "name": "Gas Stations on I-5",
+      "latitude": 47.6062,
+      "longitude": -122.3321,
+      "category": "gas station",
+      "radius": 10000,
+      "expected_min_results": 5,
+      "description": "Common category in urban/highway areas"
+    },
+    {
+      "name": "Airports near Seattle",
+      "latitude": 47.6062,
+      "longitude": -122.3321,
+      "category": "airport",
+      "radius": 50000,
+      "expected_min_results": 1,
+      "description": "Specialized category"
+    }
+  ],
+  "max_results_tests": [
+    {
+      "name": "Restaurants with maxResults=5",
+      "latitude": 40.758,
+      "longitude": -73.9855,
+      "category": "restaurant",
+      "radius": 1000,
+      "max_results": 5,
+      "expected_exact_count": 5,
+      "description": "Verify result truncation"
+    },
+    {
+      "name": "Restaurants with maxResults=1",
+      "latitude": 40.758,
+      "longitude": -73.9855,
+      "category": "restaurant",
+      "radius": 1000,
+      "max_results": 1,
+      "expected_exact_count": 1,
+      "description": "Minimum result set"
+    }
+  ]
+}

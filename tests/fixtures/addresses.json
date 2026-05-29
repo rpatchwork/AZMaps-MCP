@@ -1,0 +1,64 @@
+{
+  "us_addresses": [
+    {
+      "address": "1 Microsoft Way, Redmond, WA",
+      "expected_lat": 47.6394,
+      "expected_lon": -122.1283,
+      "tolerance": 0.01
+    },
+    {
+      "address": "1600 Amphitheatre Parkway, Mountain View, CA",
+      "expected_lat": 37.422,
+      "expected_lon": -122.0841,
+      "tolerance": 0.01
+    },
+    {
+      "address": "Space Needle, Seattle, WA",
+      "expected_lat": 47.6205,
+      "expected_lon": -122.3493,
+      "tolerance": 0.01
+    }
+  ],
+  "international_addresses": [
+    {
+      "address": "Eiffel Tower, Paris, France",
+      "expected_lat": 48.8584,
+      "expected_lon": 2.2945,
+      "tolerance": 0.01
+    },
+    {
+      "address": "Big Ben, London, UK",
+      "expected_lat": 51.5007,
+      "expected_lon": -0.1246,
+      "tolerance": 0.01
+    },
+    {
+      "address": "Tokyo Tower, Tokyo, Japan",
+      "expected_lat": 35.6586,
+      "expected_lon": 139.7454,
+      "tolerance": 0.01
+    }
+  ],
+  "ambiguous_addresses": [
+    {
+      "address": "Springfield",
+      "description": "Multiple Springfields in USA",
+      "expected_min_results": 3
+    },
+    {
+      "address": "London",
+      "description": "London UK, London ON, etc.",
+      "expected_min_results": 2
+    }
+  ],
+  "invalid_addresses": [
+    {
+      "address": "asdfghjkl123456",
+      "description": "Random characters"
+    },
+    {
+      "address": "NonexistentCity, XX 00000",
+      "description": "Fake city and zip"
+    }
+  ]
+}

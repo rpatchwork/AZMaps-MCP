@@ -10,7 +10,7 @@ import { AzureMapsError } from '../lib/errors.js';
 export const staticMapTool: Tool = {
   name: 'maps_render_static_map',
   description:
-    '✅ SUPPORTS LABELED PINS - Generate a static map image (PNG/JPEG) with optional route overlay and labeled POI markers. Pins can include custom text labels (e.g., "Hotel", "Airport", "Start", "End"). Returns base64-encoded image suitable for embedding in documents or displaying to users. ⚠️ URL LENGTH LIMIT: Routes with 100+ waypoints will likely FAIL due to HTTP GET URL size constraints. For large routes (100+ waypoints), use maps_generate_locked_html instead, which bypasses URL limits and generates a complete self-contained HTML file. This tool is for simple, small maps only. PIN LABEL EXAMPLE: [{latitude: 47.6062, longitude: -122.3321, label: "Start"}, {latitude: 47.6205, longitude: -122.3493, label: "Hotel"}]',
+    '🏷️ LABELED PINS FULLY SUPPORTED 🏷️ - Generate a static map image (PNG/JPEG) with route overlays and LABELED POI markers. **EACH PIN CAN HAVE A TEXT LABEL** to identify locations (e.g., "Start", "Hotel", "Airport Terminal A", "Restaurant", "Waypoint 1"). Returns base64-encoded image suitable for embedding. **LABEL EXAMPLES:** Single labeled pin: [{latitude: 47.6062, longitude: -122.3321, label: "Start"}] | Multiple labeled pins: [{latitude: 47.6062, longitude: -122.3321, label: "Departure"}, {latitude: 47.6205, longitude: -122.3493, label: "Hotel Check-in"}, {latitude: 47.6097, longitude: -122.3331, label: "Dinner Reservation"}] | Mixed labeled and unlabeled: [{latitude: 47.6062, longitude: -122.3321, label: "Airport"}, {latitude: 47.6205, longitude: -122.3493}] (second pin has no label). **The "label" property is OPTIONAL but RECOMMENDED for clarity.** ⚠️ URL LENGTH LIMIT: Routes with 100+ waypoints will likely FAIL due to HTTP GET URL size constraints. For large routes (100+ waypoints), use maps_generate_locked_html instead, which bypasses URL limits and generates a complete self-contained HTML file.',
   inputSchema: {
     type: 'object',
     properties: {
@@ -50,7 +50,7 @@ export const staticMapTool: Tool = {
       pins: {
         type: 'array',
         description:
-          '✅ LABELED PINS SUPPORTED - Array of POI markers with optional text labels. Each pin can have a "label" property (up to 100 chars) to display custom text on the map. Examples: {latitude: 47.6062, longitude: -122.3321, label: "Hotel"} or {latitude: 45.5231, longitude: -122.6765, label: "Airport"} or unlabeled: {latitude: 40.7128, longitude: -74.0060}',
+          '🏷️ LABELED PINS FULLY SUPPORTED 🏷️ - Array of POI markers. **EACH PIN CAN INCLUDE A "label" PROPERTY** to display custom text directly on the map marker. Labels are optional but highly recommended for identifying locations. Label examples: "Start", "End", "Hotel Checkin", "Airport Terminal B", "Waypoint 1", "Meeting Point", "Restaurant Reservation". **Format:** {latitude: number, longitude: number, label?: string}. **Example with labels:** [{latitude: 47.6062, longitude: -122.3321, label: "Departure Point"}, {latitude: 47.6205, longitude: -122.3493, label: "Destination"}]. **Example without labels:** [{latitude: 47.6062, longitude: -122.3321}, {latitude: 47.6205, longitude: -122.3493}]. You can mix labeled and unlabeled pins in the same array. Max label length: 100 characters.',
         items: {
           type: 'object',
           properties: {
@@ -59,7 +59,7 @@ export const staticMapTool: Tool = {
             label: {
               type: 'string',
               description:
-                'Optional text label to display on the pin (e.g., "Start", "Hotel", "Waypoint 1"). Max 100 characters.',
+                '🏷️ PIN LABEL TEXT (FULLY SUPPORTED) - Custom text to display directly on this map pin. Use descriptive labels to identify locations: "Start", "End", "Hotel", "Airport Terminal A", "Waypoint 1", "Meeting Point", "Restaurant", etc. Labels make maps more informative and user-friendly. **This is an OPTIONAL property** - pins without labels will display as plain markers. Max 100 characters. Examples: "Departure", "Destination", "Lunch Stop", "Hotel Check-in", "Meeting Location".',
             },
           },
           required: ['latitude', 'longitude'],
