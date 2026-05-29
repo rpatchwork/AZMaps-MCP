@@ -444,24 +444,32 @@ export class AzureMapsClient {
     // ==========================================================================
     
     // WIRE-LEVEL EQUIVALENCE: Replicate Niobe's CORRECTED validated pin format
-    // Niobe validated (visual confirmation): pins=default||-122.3321 47.6062 (double pipe, space-separated)
-    // Format: pins=default||lon lat||lon lat (double pipe between pins, space-separated coords)
-    // Format with labels: pins=default||'Label Text' lon lat||'Another' lon2 lat2
-    // CRITICAL: URLSearchParams encodes space as + (not %20), which Azure Maps rejects
-    // Must manually encode space as %20 by building pins parameter separately
+    // Niobe validated (visual confirmation): pins=default|coFF0000|la1|-122.3321,47.6062
+    // Format: style|modifier1|modifier2|lon,lat|style|lon,lat (single pipes, comma-separated coords)
+    // Label format: la{label} (e.g., la1, laA, laSTART) - NO quotes, NO spaces
+    // CRITICAL: Azure Maps pin format: pinStyle||modifiers|coordinates
+    // - DOUBLE pipe (||) after pin style
+    // - Single pipe (|) between modifiers and coordinates
+    // - Multiple pins joined by double pipe (||)
+    // - Labels MUST be URL-encoded BEFORE joining (spaces, special chars)
     
-    const pins = params.pins
-      ?.map((p) => {
-        // If pin has a label, format as: 'Label' lon lat
-        // Otherwise just: lon lat
+    // Build pins parameter
+    // Azure Maps pin format:
+    // - Single pin: default||'label'longitude latitude  OR  default||longitude latitude
+    // - Multiple pins: default||location1|location2|location3 (style appears ONCE, locations separated by single pipe)
+    let pinsParam: string | undefined;
+    if (params.pins && params.pins.length > 0) {
+      const style = 'default';
+      const locations = params.pins.map((p) => {
         if (p.label) {
-          return `'${p.label}' ${p.longitude} ${p.latitude}`;
+          return `'${p.label}'${p.longitude} ${p.latitude}`;
+        } else {
+          return `${p.longitude} ${p.latitude}`;
         }
-        return `${p.longitude} ${p.latitude}`;
-      })
-      .join('||');  // Double pipe between locations
-    const pinsParam = pins ? `default||${pins}` : undefined;  // Add style prefix
-    const encodedPins = pinsParam?.replace(/ /g, '%20');  // Manually encode space as %20
+      });
+      // Format: style||location1|location2|location3
+      pinsParam = `${style}||${locations.join('|')}`;
+    }
 
     // Build URL with all parameters EXCEPT pins and path (URLSearchParams can't handle space encoding correctly)
     const baseParams: Record<string, string | undefined> = {
@@ -508,10 +516,12 @@ export class AzureMapsClient {
       }
     }
 
-    // Step 2: Manually encode space as %20 (same URLSearchParams issue as pins)
+    // Step 2: Encode pins parameter (entire value needs URL encoding)
+    const encodedPins = pinsParam ? encodeURIComponent(pinsParam) : undefined;
+    // Step 3: Path uses manual space replacement per existing pattern
     const encodedPath = pathParam?.replace(/ /g, '%20');
 
-    // Build base URL without pins and path, then append them manually with correct %20 encoding
+    // Build base URL without pins and path, then append them manually
     let url = this.buildUrl('/map/static/png', baseParams);
     if (encodedPath) {
       url += `&path=${encodedPath}`;
@@ -520,17 +530,7 @@ export class AzureMapsClient {
       url += `&pins=${encodedPins}`;
     }
 
-    // Wire-level verification logging (temporary - for validation)
-    console.log('[Azure Maps] Static Map Request URL length:', url.length);
-    if (encodedPath) {
-      console.log('[Azure Maps] Path parameter length:', encodedPath.length);
-    }
-    
     const response = await this.fetchWithRetry(url);
-    
-    // Check response status and content
-    console.log('[Azure Maps] Response status:', response.status);
-    console.log('[Azure Maps] Response content-type:', response.headers.get('content-type'));
     console.log('[Azure Maps] Response content-length:', response.headers.get('content-length'));
     
     const buffer = await response.arrayBuffer();
