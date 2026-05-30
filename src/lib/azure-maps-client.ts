@@ -49,6 +49,13 @@ const SEARCH_API_VERSION = '2026-01-01';
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_RETRY_DELAY_MS = 1000;
 
+// MCP tool-facing avoid options are human-friendly; Azure Maps expects API-specific tokens.
+const ROUTE_AVOID_OPTION_MAP: Record<string, string> = {
+  tolls: 'tollRoads',
+  highways: 'motorways',
+  ferries: 'ferries',
+};
+
 // ============================================================================
 // AZURE MAPS HTTP CLIENT
 // ============================================================================
@@ -280,7 +287,13 @@ export class AzureMapsClient {
 
     // Add avoid options if specified
     if (params.avoidOptions && params.avoidOptions.length > 0) {
-      urlParams.avoid = params.avoidOptions.join(',');
+      const mappedAvoidOptions = params.avoidOptions
+        .map((option) => ROUTE_AVOID_OPTION_MAP[option] || option)
+        .filter((value, index, array) => array.indexOf(value) === index);
+
+      if (mappedAvoidOptions.length > 0) {
+        urlParams.avoid = mappedAvoidOptions.join(',');
+      }
     }
 
     // Add route output options for full detail
@@ -443,26 +456,15 @@ export class AzureMapsClient {
     // GENERATE STATIC MAP (if validation passed)
     // ==========================================================================
     
-    // Build pins parameter
-    // Azure Maps static image API pin format (actual implementation):
-    // - Label: 'label' (quoted string) placed BEFORE coordinates with a space separator
-    // - Coordinates: space-separated longitude latitude (e.g., -122.3321 47.6062)
-    // - Single pin with label:    default||'label' longitude latitude
-    // - Single pin without label: default||longitude latitude
-    // - Multiple pins: default||location1|location2|location3 (style prefix ONCE, single pipe between locations)
-    // - Entire pins parameter is encodeURIComponent-encoded before appending to URL
+    // Build pins parameter.
+    // Azure Maps static image API requires: default||lon lat|lon lat...
+    // Labels are accepted as input metadata but are not serialized into the pins
+    // query payload because labeled tokens are rejected by the live endpoint.
     let pinsParam: string | undefined;
     if (params.pins && params.pins.length > 0) {
       const style = 'default';
-      const locations = params.pins.map((p) => {
-        if (p.label) {
-          return `'${p.label}' ${p.longitude} ${p.latitude}`;
-        } else {
-          return `${p.longitude} ${p.latitude}`;
-        }
-      });
-      // Format: style||location1|location2|location3
-      pinsParam = `${style}||${locations.join('|')}`;
+      const pinLocations = params.pins.map((p) => `${p.longitude} ${p.latitude}`);
+      pinsParam = `${style}||${pinLocations.join('|')}`;
     }
 
     // Build URL with all parameters EXCEPT pins and path (URLSearchParams can't handle space encoding correctly)
@@ -510,9 +512,10 @@ export class AzureMapsClient {
       }
     }
 
-    // Step 2: Encode pins and path parameters consistently using encodeURIComponent
-    const encodedPins = pinsParam ? encodeURIComponent(pinsParam) : undefined;
-    const encodedPath = pathParam ? encodeURIComponent(pathParam) : undefined;
+    // Step 2: Encode overlays consistently. Both params use the same encoding strategy.
+    const encodeOverlayParam = (value: string): string => encodeURIComponent(value);
+    const encodedPins = pinsParam ? encodeOverlayParam(pinsParam) : undefined;
+    const encodedPath = pathParam ? encodeOverlayParam(pathParam) : undefined;
 
     // Build base URL without pins and path, then append them manually
     let url = this.buildUrl('/map/static/png', baseParams);

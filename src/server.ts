@@ -8,6 +8,11 @@ import { config } from 'dotenv';
 import express from 'express';
 import { AzureMapsClient } from './lib/azure-maps-client.js';
 import {
+  formatToolResultText,
+  isZodValidationError,
+  validateToolCallParams,
+} from './lib/mcp-http.js';
+import {
   geocodeAddressTool,
   batchGeocodeTool,
   handleGeocodeAddress,
@@ -324,8 +329,19 @@ app.post('/message', async (req, res) => {
     }
 
     if (method === 'tools/call') {
-      // Invoke a specific tool
-      const { name, arguments: args } = params;
+      // Validate and invoke a specific tool
+      const parsedParams = validateToolCallParams(params);
+      if (parsedParams.ok === false) {
+        return res.json({
+          jsonrpc: '2.0',
+          id,
+          error: parsedParams.error,
+        });
+      }
+
+      const {
+        value: { name, args },
+      } = parsedParams;
       
       console.log(`[SERVER] tools/call -> ${name}`);
       
@@ -384,7 +400,7 @@ app.post('/message', async (req, res) => {
             content: [
               {
                 type: 'text',
-                text: JSON.stringify(toolResult, null, 2)
+                text: formatToolResultText(name, toolResult)
               }
             ]
           }
@@ -394,6 +410,7 @@ app.post('/message', async (req, res) => {
         
       } catch (toolError) {
         console.error(`[ERROR] Tool execution failed: ${name}`, toolError);
+        const retryable = !isZodValidationError(toolError);
         return res.json({
           jsonrpc: '2.0',
           id,
@@ -402,7 +419,7 @@ app.post('/message', async (req, res) => {
             message: toolError instanceof Error ? toolError.message : 'Tool execution failed',
             data: {
               toolName: name,
-              retryable: true
+              retryable
             }
           }
         });

@@ -327,13 +327,14 @@ describe('HTTP Client: Retry Logic', () => {
       address: '1 Microsoft Way',
       maxResults: 1,
     });
+    const rejection = expect(promise).rejects.toThrow();
 
     // Fast-forward through all retry attempts
     // Initial attempt + 3 retries = 4 total
     // Delays: 1s, 2s, 4s (exponential backoff)
     await vi.advanceTimersByTimeAsync(7000);
 
-    await expect(promise).rejects.toThrow();
+    await rejection;
 
     expect(global.fetch).toHaveBeenCalledTimes(4); // Initial + 3 retries
   });
@@ -358,6 +359,7 @@ describe('HTTP Client: Retry Logic', () => {
       address: '1 Microsoft Way',
       maxResults: 1,
     });
+    const rejection = expect(promise).rejects.toThrow();
 
     // Verify backoff timing: 1s → 2s → 4s
     await vi.advanceTimersByTimeAsync(500);
@@ -372,7 +374,7 @@ describe('HTTP Client: Retry Logic', () => {
     await vi.advanceTimersByTimeAsync(4000);
     expect(global.fetch).toHaveBeenCalledTimes(4);
 
-    await expect(promise).rejects.toThrow();
+    await rejection;
   });
 });
 
@@ -442,5 +444,87 @@ describe('HTTP Client: Error Mapping', () => {
       code: ErrorCode.NETWORK_ERROR,
       retryable: true,
     });
+  });
+});
+
+describe('HTTP Client: Static Map Pin Encoding', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should encode pins with default style delimiter and coordinate payload', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers({ 'content-length': '8' }),
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    };
+
+    (global.fetch as any).mockResolvedValueOnce(mockResponse);
+
+    const client = new AzureMapsClient({
+      endpoint: 'https://atlas.microsoft.com',
+      apiKey: 'test-api-key',
+    });
+
+    await client.renderStaticMap({
+      center: { latitude: 47.6062, longitude: -122.3321 },
+      zoom: 13,
+      width: 800,
+      height: 600,
+      pins: [
+        { latitude: 47.6062, longitude: -122.3321, label: 'Stop 1' },
+        { latitude: 47.6205, longitude: -122.3493 },
+      ],
+    });
+
+    const requestUrl = String((global.fetch as any).mock.calls[0][0]);
+    const rawPins = requestUrl.match(/[?&]pins=([^&]+)/)?.[1];
+
+    expect(rawPins).toBeDefined();
+    expect(rawPins).toContain('default%7C%7C-122.3321%2047.6062');
+    expect(rawPins).toContain('%7C-122.3493%2047.6205');
+    expect(rawPins).toContain('%7C%7C');
+    expect(rawPins).not.toContain('Stop%201');
+    expect(rawPins).not.toContain('+');
+  });
+
+  it('should tolerate special characters in labels and preserve path overlay encoding', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers({ 'content-length': '8' }),
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    };
+
+    (global.fetch as any).mockResolvedValueOnce(mockResponse);
+
+    const client = new AzureMapsClient({
+      endpoint: 'https://atlas.microsoft.com',
+      apiKey: 'test-api-key',
+    });
+
+    await client.renderStaticMap({
+      center: { latitude: 47.6062, longitude: -122.3321 },
+      zoom: 13,
+      routeGeometry: JSON.stringify({
+        type: 'LineString',
+        coordinates: [
+          [-122.3321, 47.6062],
+          [-122.3493, 47.6205],
+        ],
+      }),
+      pins: [{ latitude: 47.6062, longitude: -122.3321, label: 'Hotel & Spa' }],
+    });
+
+    const requestUrl = String((global.fetch as any).mock.calls[0][0]);
+    const rawPins = requestUrl.match(/[?&]pins=([^&]+)/)?.[1];
+    const rawPath = requestUrl.match(/[?&]path=([^&]+)/)?.[1];
+
+    expect(rawPins).toBeDefined();
+    expect(rawPath).toBeDefined();
+    expect(rawPins).toContain('default%7C%7C-122.3321%2047.6062');
+    expect(rawPins).not.toContain('Hotel%20%26%20Spa');
+    expect(rawPins).not.toContain('+');
+    expect(rawPath).toContain('lw3%7C%7C');
+    expect(rawPath).not.toContain('+');
   });
 });
