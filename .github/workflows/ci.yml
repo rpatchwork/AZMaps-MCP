@@ -49,14 +49,9 @@ jobs:
           AZURE_MAPS_KEY: ${{ secrets.AZURE_MAPS_KEY }}
           AZURE_MAPS_ENDPOINT: ${{ secrets.AZURE_MAPS_ENDPOINT }}
 
-      - name: Check coverage thresholds
-        run: |
-          # Extract coverage percentages from vitest output
-          # Fail if any threshold below 80%
-          npm run test:coverage -- --reporter=json > coverage-summary.json || true
-          
-          # This will fail the build if thresholds not met
-          # Vitest will exit with non-zero code if coverage below thresholds
+      - name: Check coverage thresholds (main only)
+        if: github.ref == 'refs/heads/main'
+        run: npm run test:coverage -- --reporter=text-summary
 
       - name: Upload coverage reports
         uses: codecov/codecov-action@v4
