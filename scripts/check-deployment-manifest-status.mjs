@@ -1,7 +1,11 @@
 #!/usr/bin/env node
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
-const manifestPath = process.argv[2] ?? 'infra/stable/DEPLOYMENT_MANIFEST.md';
+const defaultManifestPath = 'infra/stable/DEPLOYMENT_MANIFEST.md';
+const cliArgs = process.argv.slice(2);
+const escalate = cliArgs.includes('--escalate');
+const manifestArg = cliArgs.find((arg) => !arg.startsWith('--'));
+const manifestPath = manifestArg ?? defaultManifestPath;
 const failingStatuses = ['failed', 'pending'];
 
 function normalizeStatus(value) {
@@ -25,11 +29,70 @@ function appendStepSummary(lines) {
   }
 }
 
+function toTimestampSlug(timestampIso) {
+  return timestampIso.replace(/[:.]/g, '-');
+}
+
+function createEscalationArtifact(reason) {
+  const timestamp = new Date().toISOString();
+  const escalationDir = '.squad/work-routing/escalations';
+  const fileName = `deployment-manifest-${toTimestampSlug(timestamp)}.md`;
+  const artifactPath = `${escalationDir}/${fileName}`;
+  const owner = 'Neo';
+  const nextAction = 'Triage deployment blockers and update deployment manifest status with remediation details.';
+  const sla = '4h triage SLA from escalation timestamp.';
+
+  mkdirSync(escalationDir, { recursive: true });
+
+  const artifact = [
+    '# Deployment Manifest Escalation',
+    '',
+    `- Timestamp: ${timestamp}`,
+    `- Reason: ${reason}`,
+    `- Source Manifest: ${manifestPath}`,
+    `- Assigned Owner: ${owner}`,
+    `- SLA/Next Action: ${sla} ${nextAction}`,
+    '',
+  ].join('\n');
+
+  writeFileSync(artifactPath, artifact, 'utf8');
+
+  const handoffLogPath = '.squad/work-routing/handoffs.log';
+  const handoffEntry = [
+    '---',
+    `Cycle: ${timestamp}`,
+    'From: DeploymentManifestGate',
+    `To: ${owner}`,
+    'Status: ESCALATED',
+    `Source: ${manifestPath}`,
+    `Reason: ${reason}`,
+    `SLA: ${sla}`,
+    `Next: ${nextAction}`,
+    `Escalation Artifact: ${artifactPath}`,
+  ].join('\n');
+  appendFileSync(handoffLogPath, `\n${handoffEntry}\n`, 'utf8');
+
+  return { artifactPath, owner };
+}
+
 function fail(reason, details = []) {
+  let escalationResult;
+  if (escalate) {
+    try {
+      escalationResult = createEscalationArtifact(reason);
+    } catch (error) {
+      details = [...details, `Escalation write failed: ${String(error)}`];
+    }
+  }
+
   console.error(`::error title=Deployment Manifest Gate Failed::${reason}`);
   console.error(reason);
   for (const line of details) {
     console.error(line);
+  }
+  if (escalationResult) {
+    console.error(`Escalation artifact created: ${escalationResult.artifactPath}`);
+    console.error(`Assigned owner: ${escalationResult.owner}`);
   }
   appendStepSummary([
     '## Deployment Manifest Gate Result',
@@ -39,6 +102,13 @@ function fail(reason, details = []) {
     `**Reason:** ${reason}`,
     '',
     ...details.map((line) => `- ${line}`),
+    ...(escalationResult
+      ? [
+          '',
+          `- Escalation artifact: ${escalationResult.artifactPath}`,
+          `- Assigned owner: ${escalationResult.owner}`,
+        ]
+      : []),
   ]);
   process.exit(1);
 }

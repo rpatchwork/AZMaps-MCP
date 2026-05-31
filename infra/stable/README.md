@@ -182,6 +182,14 @@ Local check command:
 npm run check:deployment-manifest
 ```
 
+Local escalation command (non-GitHub workflow path):
+
+```bash
+npm run check:deployment-manifest:escalate
+```
+
+If the gate is blocked (`Pending` or `Failed`), this command writes a local escalation artifact to `.squad/work-routing/escalations/` and appends a routing entry to `.squad/work-routing/handoffs.log` assigned to Neo.
+
 ### Verify ACR Deployment
 ```bash
 az acr show --name azmapsmcp --resource-group rg-azmaps-mcp-dev
