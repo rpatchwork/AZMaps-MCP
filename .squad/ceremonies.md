@@ -67,3 +67,28 @@ At round start, call Test-RetroOverdue (see skill retro-enforcement). If overdue
 
 **Why GitHub Issues, not markdown:**
 Production data: 0% completion across 6 retros using markdown checklists, 100% after switching to GitHub Issues.
+
+---
+
+## Session Start Board Check
+
+| Field | Value |
+|-------|-------|
+| **Trigger** | auto |
+| **When** | session-start |
+| **Condition** | Every session start — first user message of the session |
+| **Facilitator** | ralph |
+| **Participants** | ralph |
+| **Time budget** | quick (one work-check cycle) |
+| **Enabled** | ✅ yes |
+
+**Agenda:**
+1. Ralph scans GitHub board: open issues (with squad labels), open PRs, CI/review status
+2. Ralph evaluates deployment gates on any PR that is in review or merge-ready state
+3. Ralph presents board in standard board format
+4. Coordinator proceeds with user's request AFTER Ralph's board report
+
+**Coordinator integration:**
+On every session start, BEFORE answering the user's first request, the coordinator activates Ralph's work-check cycle (one round). Ralph presents the board. Only then does the coordinator address the user's question. The coordinator does NOT summarize WIP status — that is Ralph's job.
+
+**Why:** Ralph is the work monitor. The coordinator doing board summaries is a role violation. Ralph owns the board; the coordinator owns routing.

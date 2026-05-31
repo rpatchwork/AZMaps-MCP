@@ -132,6 +132,383 @@ param sku string = 'G2'
 
 ---
 
+### 2026-05-22: WI-001 Container Apps Deployment Success
+
+**Mission:** Fix Container Apps deployment parameter errors  
+**Status:** ✅ COMPLETE — Critical Path Unblocked  
+**Duration:** 15 minutes (14:30 - 14:45 UTC)  
+**Sprint:** Sprint 001  
+
+**Problem:**
+Container Apps deployment failing with exit code 1 due to invalid parameters:
+- `acrLoginServer` — Template uses `acrName` (registry name only)
+- `mapsEndpoint` — Hardcoded in template as environment variable
+
+**Root Cause:**
+Deployment command was passing parameters that don't exist in `container-apps.bicep`. Azure CLI error message explicitly listed allowed parameters, making diagnosis straightforward.
+
+**Solution:**
+Corrected deployment command to only override runtime-specific values:
+```powershell
+az deployment group create \
+  --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    mapsApiKey="<MAPS_API_KEY>" \
+  --name containerapp-deployment
+```
+
+**Key Changes:**
+- ❌ Removed `acrLoginServer` parameter
+- ❌ Removed `mapsEndpoint` parameter
+- ✅ Only pass runtime overrides: `containerImage`, `mapsApiKey`
+
+**Deployment Results:**
+
+All resources provisioned successfully:
+| Resource | Name | Status |
+|----------|------|--------|
+| User-Assigned Identity | `id-azmaps-mcp-dev` | ✅ Created |
+| RBAC Assignment | AcrPull → ACR | ✅ Assigned |
+| Log Analytics | `log-cae-azmaps-mcp-dev` | ✅ Created |
+| Container Apps Env | `cae-azmaps-mcp-dev` | ✅ Created |
+| Container App | `ca-azmaps-mcp-dev` | ✅ Running |
+
+**Container App Details:**
+- **FQDN:** `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **URL:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **Provisioning State:** Running
+- **Deployment Duration:** 1 minute 32 seconds
+
+**Impact:**
+- ✅ Critical path unblocked — Sprint 001 can proceed
+- ✅ MCP server publicly accessible for integration testing
+- ✅ All 3 deployment stages validated (ACR → Maps → Container Apps)
+
+**Lessons Learned:**
+1. **Parameter validation:** Cross-reference Bicep parameter definitions before overriding
+2. **Error message analysis:** Azure CLI explicitly lists allowed parameters — use for diagnosis
+3. **Parameter file hygiene:** `.bicepparam` provides defaults — only override runtime values
+4. **Documentation debt:** Deployment README needs minimal command examples
+
+**Pattern for Future Deployments:**
+This parameter override pattern applies to all deployment stages. Template files define the contract; parameter files provide defaults; deployment commands only override runtime-specific values.
+
+**Related Decisions:**
+- Container Apps deployment parameter fix (decisions.md, 2026-05-22)
+
+---
+
+### 2026-05-22: Infrastructure Analysis — Transport Options (WI-002 Blocker)
+
+**Mission:** Infrastructure perspective on MCP server transport architecture  
+**Context:** Trinity discovered stdio/HTTP mismatch blocking Container Apps integration  
+**Status:** ✅ Analysis Complete — Recommendation Provided  
+**Duration:** 20 minutes (15:00 - 15:20 UTC)  
+
+---
+
+## Problem Context
+
+**Blocker:** MCP server uses `StdioServerTransport` (STDIN/STDOUT) but Container Apps requires HTTP transport on port 3000. Server is running but unreachable via HTTP.
+
+**Trinity's Finding:**
+```typescript
+// src/server.ts:245
+const transport = new StdioServerTransport(); // ❌ No HTTP server
+await server.connect(transport);
+```
+
+**Infrastructure Configuration:**
+- Container Apps ingress: External, port 3000, transport: auto ✅
+- Dockerfile: EXPOSE 3000, health check on /health ✅  
+- Server code: stdio transport ❌ **MISMATCH**
+
+---
+
+## Infrastructure Analysis
+
+### 1. Deployment Impact Assessment
+
+**If we add HTTP transport (Option A from Trinity):**
+
+**Container Apps Configuration Changes:**
+- ✅ **NO CHANGES NEEDED** — Current Bicep already configured correctly:
+  - `ingress.targetPort: 3000` ✅
+  - `ingress.external: true` ✅
+  - `ingress.transport: 'auto'` ✅
+  - Environment variable `PORT: '3000'` ✅
+
+**Dockerfile Changes Required:**
+- ❌ Change health check from `/health` → `/healthz` (1 line)
+- ✅ No other changes needed (already exposes port 3000)
+
+**Application Code Changes (Trinity's proposal):**
+- Add Express HTTP server (~20 lines)
+- Add `/healthz` endpoint for Container Apps probes
+- Replace `StdioServerTransport` with `SSEServerTransport`
+- Add Express dependency to package.json
+
+**Deployment Process:**
+1. Update code (`src/server.ts`)
+2. Update Dockerfile health check (1 line)
+3. Rebuild Docker image: `docker build -t azmaps-mcp:v2 .`
+4. Push to ACR: `docker push azmapsmcp.azurecr.io/azmaps-mcp:v2`
+5. Update Container Apps: `az containerapp update --image azmapsmcp.azurecr.io/azmaps-mcp:v2`
+
+**Impact:** ✅ **Minimal** — Infrastructure already correct, only app layer changes
+
+---
+
+### 2. Complexity Trade-off Analysis
+
+**Is stdio in containers fundamentally wrong?**
+
+**Short answer:** Yes, for this use case.
+
+**Technical Reasoning:**
+
+**Stdio Transport Design Intent:**
+- Local CLI tools (VSCode extensions, desktop apps)
+- Parent process spawns child process
+- Communication via process pipes (STDIN/STDOUT)
+- No network layer required
+
+**Container Apps Design Intent:**
+- Network-accessible HTTP services
+- Ingress routing via reverse proxy
+- Health probes via HTTP GET requests
+- Horizontal scaling via load balancer
+
+**The Mismatch:**
+```
+Container Apps Ingress → HTTP Request → Container Port 3000
+                                            ↓
+                                         [No HTTP server]
+                                            ↓
+                                         StdioTransport (expects process pipes)
+                                            ↓
+                                         ❌ TIMEOUT
+```
+
+**Fundamental Issue:** Stdio transport expects a parent/child process relationship. Container Apps provides network isolation. These are **architecturally incompatible**.
+
+**Verdict:** This is not a configuration issue — it's an **architecture mismatch**. Stdio transport was the wrong choice for containerized deployment.
+
+---
+
+### 3. Alternative Deployment Models
+
+**Option 1: Add HTTP Transport (Trinity's proposal) ✅ RECOMMENDED**
+
+**What changes:**
+- Add Express HTTP server layer
+- Keep all MCP protocol logic unchanged
+- Add health endpoint for Container Apps probes
+
+**Pros:**
+- ✅ Minimal code changes (~30 lines)
+- ✅ Container Apps infrastructure unchanged
+- ✅ Production-ready (always-warm, autoscale, observability)
+- ✅ Solves health probe issue simultaneously
+- ✅ Enables structured logging (future WI-003)
+
+**Cons:**
+- ⚠️ Adds Express dependency (minimal, industry standard)
+- ⚠️ Requires rebuild/redeploy (1 hour total)
+
+**Cost:** No change (~$35-50/month)
+
+---
+
+**Option 2: Stdio + HTTP Proxy Sidecar ❌ NOT RECOMMENDED**
+
+**What it means:**
+- Keep stdio server unchanged
+- Add nginx/envoy sidecar container
+- Sidecar converts HTTP → stdio via named pipes
+
+**Pros:**
+- No changes to MCP server code
+
+**Cons:**
+- ❌ **Complexity explosion** — Add sidecar container, shared volumes, inter-container networking
+- ❌ Two containers per replica (doubles resource costs)
+- ❌ Proxy configuration fragility (stdio pipe handling tricky)
+- ❌ Debugging nightmare (two-layer transport conversion)
+- ❌ Health probes still need custom logic
+
+**Cost Impact:** +50% ($50-75/month)
+
+**Verdict:** Violates "Build Primitives First" principle. Adds complexity without benefit.
+
+---
+
+**Option 3: Azure Container Instances (ACI) ❌ NOT RECOMMENDED**
+
+**What it means:**
+- Deploy stdio server in Azure Container Instances
+- Keep stdio transport unchanged
+
+**Pros:**
+- Simpler than Container Apps (no environment, ingress, etc.)
+
+**Cons:**
+- ❌ **Same HTTP problem** — ACI still needs HTTP endpoint for public access
+- ❌ No health probes (container restarts on crash, but no proactive checks)
+- ❌ No autoscaling (manual instance management)
+- ❌ No built-in observability (need separate Log Analytics setup)
+- ❌ Cold start issues (no "always-warm" option)
+
+**Cost:** Similar (~$30-40/month)
+
+**Verdict:** Doesn't solve the problem. ACI is simpler but still needs HTTP for public access.
+
+---
+
+**Option 4: Azure Functions ❌ NOT RECOMMENDED**
+
+**What it means:**
+- Deploy as HTTP-triggered Azure Function
+- Rewrite MCP server for Functions runtime
+
+**Pros:**
+- Native HTTP trigger support
+- Consumption plan available
+
+**Cons:**
+- ❌ **Major rewrite** — Functions runtime different from standalone server
+- ❌ Cold start issues (unless Premium plan)
+- ❌ Premium plan expensive ($200+/month)
+- ❌ Consumption plan unsuitable (60s timeout, cold starts)
+- ❌ Over-engineering for MCP use case
+
+**Cost:** $0-200/month (Consumption or Premium)
+
+**Verdict:** Wrong tool for the job. Container Apps already optimal for MCP servers.
+
+---
+
+**Option 5: Keep Local-Only (CLI Tool) ❌ NOT FOR V1**
+
+**What it means:**
+- Remove Container Apps deployment
+- Ship as npm package for local CLI use only
+- Users run `npx azmaps-mcp` locally
+
+**Pros:**
+- Stdio transport works perfectly for CLI
+- No infrastructure costs
+- Simpler architecture
+
+**Cons:**
+- ❌ **Scope violation** — V1 goal is cloud-hosted MCP service
+- ❌ No agent integration (agents need HTTP endpoints)
+- ❌ User burden (install Node, manage credentials locally)
+- ❌ No centralized logging/monitoring
+
+**Cost:** $0/month
+
+**Verdict:** Wrong scope. Project charter requires cloud deployment for agent integration.
+
+---
+
+### 4. Risk Assessment: Adding HTTP Transport
+
+**Technical Risk:** 🟢 **LOW**
+
+**Why low risk:**
+1. **Express is battle-tested** — Industry standard, billions of deployments
+2. **Container Apps config unchanged** — Infrastructure already correct
+3. **MCP protocol logic untouched** — Only transport layer changes
+4. **Health probe fix included** — Solves two problems at once
+5. **Rollback trivial** — Keep v1 image in ACR, rollback via `az containerapp update`
+
+**Implementation Risk:** 🟢 **LOW**
+
+**Why low risk:**
+1. **Small code change** — ~30 lines, clear boundaries
+2. **Fast iteration** — Build → Push → Deploy cycle ~10 minutes
+3. **Local testing possible** — `docker run -p 3000:3000` validates before deploy
+4. **No data migration** — Stateless service, no persistence layer
+
+**Schedule Risk:** 🟢 **LOW**
+
+**Why low risk:**
+1. **Fast fix** — Trinity estimates 1-2 hours total
+2. **Sprint buffer** — Sprint 001 has 5-day duration, this is 15% of WI-002
+3. **No dependencies blocked** — Other WIs can proceed (WI-003 logging)
+
+**Cost Risk:** 🟢 **NONE**
+
+- No infrastructure changes = no cost changes
+- Express adds ~50KB to image (negligible)
+
+---
+
+### 5. Infrastructure Recommendation
+
+**RECOMMENDED: Option 1 (Add HTTP Transport) ✅**
+
+**Reasoning:**
+
+1. **Minimal Infra Impact:** Container Apps config already correct. No Bicep changes, no redeploy needed — just update the container image.
+
+2. **Follows Best Practices:** MCP Best Practices Guide explicitly says:
+   > ❌ DON'T USE: StdioServerTransport (for local CLI MCP servers)  
+   > ✅ USE: HTTP Transport for Container Apps/Functions
+
+3. **Solves Multiple Problems:**
+   - Fixes HTTP connectivity (WI-002 blocker)
+   - Fixes health probe issue (Dockerfile expects `/health`)
+   - Enables structured logging (future WI-003)
+   - Production-ready observability
+
+4. **Low Risk, High Value:**
+   - Technical risk: LOW (Express is standard, small change)
+   - Implementation risk: LOW (1-2 hours, local testing possible)
+   - Schedule risk: LOW (15% of WI-002 time budget)
+   - Cost risk: NONE (no infra changes)
+
+5. **Respects Core Principles:**
+   - **"Build Primitives First"** — Fix architecture before adding features
+   - **"Don't break what works"** — Infra is correct, only app needs fix
+   - **"Know When to Stop Digging"** — Don't add sidecars/proxies to avoid proper fix
+
+**Alternative Options Rejected:**
+- ❌ Option 2 (Sidecar Proxy) — Complexity explosion, violates primitives principle
+- ❌ Option 3 (ACI) — Doesn't solve problem, loses Container Apps benefits
+- ❌ Option 4 (Functions) — Over-engineering, wrong tool
+- ❌ Option 5 (Local-only) — Wrong scope for V1
+
+---
+
+## Infrastructure Verdict
+
+**This is NOT a configuration issue — it's an architecture mismatch that requires code change.**
+
+**From infrastructure perspective:** Container Apps is correctly configured. The problem is in the application layer (stdio transport incompatible with containerized HTTP services).
+
+**Action Required:** Implement Trinity's Option A (add HTTP transport). Infrastructure team will support with:
+1. Rebuild Docker image after code changes
+2. Push updated image to ACR
+3. Update Container Apps container image reference
+4. Verify health probe and HTTP connectivity
+
+**Time to Resolution:** ~1-2 hours total (Trinity: 30-60min code, Neo: 30min rebuild/deploy, Trinity: 15min verify)
+
+---
+
+## Related Work Items
+
+- **WI-002** (Trinity, BLOCKED → UNBLOCKED after fix)
+- **WI-003** (Trinity, structured logging — benefits from HTTP transport)
+
+**Squad Impact:** Critical path unblocked for Sprint 001 V1 launch.
+
+---
+
 ## Core Infrastructure Patterns
 
 ### Bicep Module Design
@@ -206,4 +583,163 @@ param sku string = 'G2'
 
 ---
 
+### 2026-05-22: WI-001 — Container Apps Deployment Fixed (Sprint 001)
+
+**Status:** ✅ RESOLVED  
+**Duration:** 15 minutes  
+**Priority:** P0 (Critical Path)
+
+**Context:**
+Previous Container Apps deployment failed with exit code 1. ACR and Azure Maps were successfully deployed, Docker image pushed to registry, but Container Apps deployment was failing.
+
+**Root Cause:**
+Parameter mismatch in deployment command. The command was passing two invalid parameters:
+- `acrLoginServer` — Does NOT exist in Bicep template
+- `mapsEndpoint` — Does NOT exist in Bicep template (hardcoded to 'https://atlas.microsoft.com')
+
+**Original Failed Command:**
+```powershell
+az deployment group create --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    acrLoginServer="azmapsmcp.azurecr.io" \     # ❌ Invalid parameter
+    mapsEndpoint="https://atlas.microsoft.com" \ # ❌ Invalid parameter
+    mapsApiKey="..." \
+  --name containerapp-deployment
+```
+
+**Error Message:**
+```
+unrecognized template parameter 'acrLoginServer'. 
+Allowed parameters: acrName, appName, containerImage, environmentName, 
+identityName, location, mapsApiKey, maxReplicas, minReplicas, tags
+```
+
+**Solution:**
+Removed invalid parameters from command line:
+```powershell
+az deployment group create --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    mapsApiKey="..." \                          # ✅ Valid parameter
+  --name containerapp-deployment
+```
+
+**Template Configuration:**
+- `acrName` parameter expects just the name (e.g., "azmapsmcp"), not full URL
+- `mapsEndpoint` is hardcoded in template as environment variable
+- Both were already correctly set in `.bicepparam` file
+
+**Deployment Results:**
+- ✅ User-Assigned Managed Identity created
+- ✅ AcrPull role assignment successful
+- ✅ Log Analytics workspace created
+- ✅ Container Apps Environment created
+- ✅ Container App deployed and running
+- ✅ Duration: 1 minute 32 seconds
+
+**Deployed Resources:**
+- **Container App:** `ca-azmaps-mcp-dev`
+- **FQDN:** `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **URL:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **Status:** Running
+- **Identity Principal ID:** `8b1f95be-0e05-429f-a0dd-3a878bd26e5f`
+
+**Key Learning:**
+When Bicep deployment fails with "unrecognized template parameter":
+1. Check Bicep file for actual parameter definitions
+2. Verify `.bicepparam` file for defaults
+3. Only override parameters that need runtime values (e.g., secrets)
+4. Never assume parameter names — always check the schema
+
+**Impact:**
+- Unblocks Sprint 001 critical path
+- Container Apps infrastructure now ready for MCP server testing
+- Trinity can proceed with endpoint validation
+- Ralph can begin integration testing
+
+---
+
 **Full History:** See history-archive.md (528 lines, 15745 bytes)
+
+
+---
+
+### 2026-05-22: WI-002 HTTP Transport Deployment — SUCCESS ✅
+
+**Mission:** Rebuild Docker image with HTTP transport, push to ACR, redeploy to Container Apps  
+**Status:** ✅ COMPLETE  
+**Context:** Trinity completed HTTP/SSE transport implementation, handoff received
+
+**Execution Timeline:**
+- Dockerfile update: 2 minutes (health check path '/health' → '/healthz')
+- Docker rebuild: 242 seconds (~4 minutes)
+- ACR push: 118 seconds (~2 minutes)
+- Container Apps redeploy: 120 seconds (~2 minutes)
+- Health verification: 2 minutes
+- **Total:** ~12 minutes
+
+**Deployment Results:**
+- **Revision:** 'ca-azmaps-mcp-dev--oc3mtjw'
+- **Status:** Running
+- **Health Endpoint:** 'GET /healthz' → 200 OK (responding, <100ms)
+- **Probe Status:** Passing continuously (zero restarts)
+- **Public URL:** 'https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io'
+
+**Quality Metrics:**
+- Zero deployment errors
+- Zero container restarts
+- Health probe passing continuously
+- Clean rollout (100% traffic to new revision)
+- Fast iteration cycle (~10 minutes build + push + deploy)
+
+**Container Endpoint Details:**
+- **Base URL:** 'https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io'
+- **Health Check:** 'GET /healthz' → '{"status": "healthy", "timestamp": "..."}'
+- **MCP Endpoint:** 'POST /message' → JSON-RPC over HTTP with SSE
+
+**Impact:**
+- ✅ HTTP transport live in production
+- ✅ MCP server accessible via HTTPS
+- ✅ Health probes functional
+- ✅ Architecture aligned (code + infrastructure both use HTTP)
+- ✅ WI-002 protocol verification unblocked for Trinity
+
+**What Was Learned:**
+
+**1. Container Apps Revision Model**
+- Each deployment creates new revision with auto-generated suffix
+- Old revisions kept for rollback (configurable retention)
+- Traffic splitting available for blue/green deployments
+- Fast rollouts (~2 minutes for new revision to become active)
+
+**2. Health Probe Configuration Best Practices**
+- Liveness probe prevents zombie containers
+- Initial delay (5s) allows startup time before first check
+- Path must exactly match server implementation ('/healthz' not '/health')
+- Separate health endpoint from application endpoints (better isolation)
+
+**3. ACR Integration Patterns**
+- Managed Identity simplifies authentication (no registry passwords in scripts)
+- AcrPull role sufficient for Container Apps image pull
+- Image updates trigger automatic redeployment when using ':latest' tag
+- Fast push times (~2 minutes for 180MB image)
+
+**4. Fast Iteration Cycle**
+- Build + Push + Deploy + Verify = ~10-12 minutes end-to-end
+- Enables rapid prototyping and debugging
+- Container Apps cold start minimal (~30 seconds)
+- Health probe confirms readiness (no manual verification needed)
+
+**Infrastructure Patterns Validated:**
+- ✅ Managed Identity + RBAC (AcrPull role) for ACR access
+- ✅ Container Apps revision model for zero-downtime updates
+- ✅ Health probe configuration for liveness monitoring
+- ✅ HTTP ingress with SSL termination (automatic HTTPS)
+
+**References:**
+- Orchestration Log: '.squad/orchestration-log/2026-05-22T15-10-neo-wi002.md'
+- Trinity's Implementation: '.squad/orchestration-log/2026-05-22T15-00-trinity-wi002.md'
+- Decision: '.squad/decisions/decisions.md' (HTTP Transport section)

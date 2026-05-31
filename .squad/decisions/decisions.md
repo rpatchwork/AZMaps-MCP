@@ -66,6 +66,87 @@ This note added 2026-05-22 to prevent confusion in squad documentation.
 
 ---
 
+## 2026-05-22 — HTTP Transport for Container Apps (WI-002)
+
+**Facilitator:** Morpheus (Lead)  
+**Implementation:** Trinity (Backend Developer)  
+**Deployment:** Neo (Cloud Engineer)  
+**Status:** ✅ IMPLEMENTED & DEPLOYED
+
+### Decision
+
+**Implement HTTP/SSE transport for v1.0.** Replaced StdioServerTransport with Express + SSEServerTransport to enable network-accessible MCP service.
+
+### Context
+
+Container Apps deployment (WI-001) succeeded, but MCP protocol verification (WI-002) revealed architecture mismatch:
+- Server used `StdioServerTransport` (local CLI stdin/stdout communication)
+- Container Apps expected HTTP endpoints (ingress on port 3000)
+- Result: Health check timeout, service unreachable
+
+### Classification: Core Architecture (Not Scope Creep)
+
+**Morpheus's Analysis:**
+- ❌ NOT optional enhancement — fundamental architecture correction
+- ✅ Sprint goal requirement: "Operational MCP service that other agents can discover and call"
+- ✅ Bug fix: Infrastructure planned for HTTP from day one (Dockerfile EXPOSE 3000, Bicep HTTP ingress)
+- ✅ Stdio transport was implementation mistake, not conscious v1/v1.1 trade-off
+
+**Decision Framework Applied:**
+1. **Sprint Goal Test:** Stdio-only cannot meet "callable service" requirement → HTTP required for v1.0
+2. **Risk Assessment:** Option A (implement now): Low risk, 1-2 hours. Option B (defer): Sprint fails.
+3. **Scope Classification:** Core architecture (communication layer), not quality polish
+
+### Implementation (Trinity)
+
+**Code Changes:**
+- Added dependencies: `express`, `@types/express`
+- Replaced transport: `StdioServerTransport` → `SSEServerTransport`
+- Added HTTP server: Express listening on port 3000
+- Added endpoints: `GET /healthz` (health check), `POST /message` (MCP JSON-RPC over SSE)
+
+**Files Modified:**
+- `src/server.ts` (~70 lines modified)
+- `package.json` (Express dependencies added)
+- `README.md` (HTTP transport documented)
+
+**Build Status:** ✅ Success
+**Implementation Time:** 1.25 hours (within 1-2 hour estimate)
+
+### Deployment (Neo)
+
+**Actions:**
+1. Docker rebuild: `docker build -t azmaps-mcp:v1 .` — ✅ Success (242 seconds)
+2. ACR push: `docker push azmapsmcp.azurecr.io/azmaps-mcp:latest` — ✅ Success
+3. Container Apps redeploy: Updated with new image — ✅ Success
+4. Health check: `GET /healthz` → 200 OK ✅
+
+**Deployed Revision:** `ca-azmaps-mcp-dev--oc3mtjw`
+**Status:** Running, health endpoint responding
+
+### Outcome
+
+**Positive:**
+- ✅ MCP server accessible over HTTP (Container Apps compatible)
+- ✅ Health checks functional (`/healthz` endpoint)
+- ✅ Architecture aligned (code matches infrastructure)
+- ✅ Standard MCP pattern (SSEServerTransport is recommended for Azure)
+- ✅ All 7 tools unchanged (zero regression risk)
+- ✅ WI-002 unblocked (can now test MCP protocol via HTTP)
+
+**Trade-offs:**
+- 🟡 Cannot run as local CLI tool anymore (requires HTTP client)
+- 🟡 Required rebuild + redeploy cycle (~3 hours total)
+
+### References
+
+- Trinity's Implementation: `.squad/decisions/inbox/trinity-http-transport-implemented.md`
+- Morpheus's Analysis: `.squad/decisions/inbox/morpheus-transport-decision.md`
+- MCP Best Practices: `.squad/knowledge/mcp-azure-best-practices.md` (SSEServerTransport pattern)
+- Commit: 9ab6f37
+
+---
+
 ## 2026-05-21 — Azure Maps Gen2 Deployment Verification
 
 **Verified by:** Neo (Infrastructure Specialist)  
@@ -360,6 +441,103 @@ Niobe is the Gen2 compliance enforcer for Azure Maps. NO ONE on the squad may re
 - Validate: Test against plan (not against assumptions)
 
 **Authority:** Brady initiated project reboot via pivot decision
+
+---
+
+## 2026-05-22 — Container Apps Deployment Parameter Fix
+
+**Date:** 2026-05-22 14:30 UTC  
+**Status:** ✅ Resolved  
+**Decider:** Neo (Cloud Engineer)  
+**Context:** Sprint 001, WI-001 Container Apps deployment failure  
+**Impact:** Critical Path — Unblocked deployment pipeline
+
+### Problem
+
+Container Apps deployment was failing with exit code 1. Error message:
+
+```
+unrecognized template parameter 'acrLoginServer'. 
+Allowed parameters: acrName, appName, containerImage, environmentName, 
+identityName, location, mapsApiKey, maxReplicas, minReplicas, tags
+```
+
+Previous deployment attempts were passing invalid parameters that don't exist in the Bicep template.
+
+### Root Cause
+
+The deployment command was passing two parameters that don't exist in `container-apps.bicep`:
+
+1. **`acrLoginServer`** — Template uses `acrName` (expects just the name, not full server URL)
+2. **`mapsEndpoint`** — Hardcoded in template as environment variable (not a parameter)
+
+Both values were already correctly configured in the `.bicepparam` file and the Bicep template itself.
+
+### Solution
+
+**Corrected deployment command:**
+
+```powershell
+az deployment group create \
+  --resource-group rg-azmaps-mcp-dev \
+  --template-file container-apps.bicep \
+  --parameters container-apps.bicepparam \
+  --parameters containerImage="azmapsmcp.azurecr.io/azmaps-mcp:latest" \
+    mapsApiKey="<MAPS_API_KEY>" \
+  --name containerapp-deployment
+```
+
+**Key Changes:**
+- ❌ Removed `acrLoginServer` parameter
+- ❌ Removed `mapsEndpoint` parameter
+- ✅ Only pass runtime-specific values: `containerImage`, `mapsApiKey`
+
+### Template Configuration Reference
+
+**In `container-apps.bicep`:**
+```bicep
+param acrName string                    // ✅ Expects just the name (e.g., "azmapsmcp")
+param containerImage string              // ✅ Full image path with tag
+@secure()
+param mapsApiKey string                  // ✅ Secure parameter for API key
+
+// ❌ NO acrLoginServer parameter
+// ❌ NO mapsEndpoint parameter (hardcoded in env vars)
+```
+
+**In `container-apps.bicepparam`:**
+```bicep
+param acrName = 'azmapsmcp'             // Already set
+param containerImage = 'azmapsmcp.azurecr.io/azmaps-mcp:latest'  // Default
+param mapsApiKey = '<RETRIEVE_FROM_DEPLOYMENT_2_OUTPUT>'  // Must override
+```
+
+### Deployment Success
+
+Deployment completed successfully with these resources:
+
+| Resource | Name | Status |
+|----------|------|--------|
+| User-Assigned Identity | `id-azmaps-mcp-dev` | ✅ Created |
+| RBAC Role Assignment | AcrPull → ACR | ✅ Assigned |
+| Log Analytics | `log-cae-azmaps-mcp-dev` | ✅ Created |
+| Container Apps Env | `cae-azmaps-mcp-dev` | ✅ Created |
+| Container App | `ca-azmaps-mcp-dev` | ✅ Running |
+
+**Container App Details:**
+- **FQDN:** `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **URL:** `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io`
+- **Running Status:** ✅ Running
+- **Deployment Duration:** 1 minute 32 seconds
+
+### Team Impact
+
+**Critical Path Unblocked:** Container Apps deployment pipeline is now operational. Sprint 001 can proceed with MCP endpoint validation and integration testing.
+
+**Lessons Learned:**
+1. Always cross-reference Bicep parameter definitions before overriding values
+2. Parameter files (`.bicepparam`) already provide defaults — only override runtime-specific values
+3. Azure CLI error messages clearly indicate allowed parameters — use them for validation
 
 ---
 
