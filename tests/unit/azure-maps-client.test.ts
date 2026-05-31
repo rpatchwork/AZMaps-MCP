@@ -452,7 +452,7 @@ describe('HTTP Client: Static Map Pin Encoding', () => {
     vi.clearAllMocks();
   });
 
-  it('should encode pins with default style delimiter and coordinate payload', async () => {
+  it('should encode a numeric pin label without breaking lon/lat parsing', async () => {
     const mockResponse = {
       ok: true,
       headers: new Headers({ 'content-length': '8' }),
@@ -472,8 +472,7 @@ describe('HTTP Client: Static Map Pin Encoding', () => {
       width: 800,
       height: 600,
       pins: [
-        { latitude: 47.6062, longitude: -122.3321, label: 'Stop 1' },
-        { latitude: 47.6205, longitude: -122.3493 },
+        { latitude: 47.6062, longitude: -122.3321, label: '1' },
       ],
     });
 
@@ -481,14 +480,80 @@ describe('HTTP Client: Static Map Pin Encoding', () => {
     const rawPins = requestUrl.match(/[?&]pins=([^&]+)/)?.[1];
 
     expect(rawPins).toBeDefined();
-    expect(rawPins).toContain('default%7C%7C-122.3321%2047.6062');
-    expect(rawPins).toContain('%7C-122.3493%2047.6205');
+    expect(rawPins).toContain("default%7C%7C'1'-122.3321%2047.6062");
     expect(rawPins).toContain('%7C%7C');
-    expect(rawPins).not.toContain('Stop%201');
+    expect(rawPins).not.toContain('%271%27%20-122.3321');
     expect(rawPins).not.toContain('+');
   });
 
-  it('should tolerate special characters in labels and preserve path overlay encoding', async () => {
+  it('should encode multi-word and multiple labeled pins', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers({ 'content-length': '8' }),
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    };
+
+    (global.fetch as any).mockResolvedValueOnce(mockResponse);
+
+    const client = new AzureMapsClient({
+      endpoint: 'https://atlas.microsoft.com',
+      apiKey: 'test-api-key',
+    });
+
+    await client.renderStaticMap({
+      center: { latitude: 47.6062, longitude: -122.3321 },
+      zoom: 13,
+      pins: [
+        { latitude: 47.6062, longitude: -122.3321, label: 'Stop 1' },
+        { latitude: 47.6205, longitude: -122.3493, label: 'Stop 2' },
+      ],
+    });
+
+    const requestUrl = String((global.fetch as any).mock.calls[0][0]);
+    const rawPins = requestUrl.match(/[?&]pins=([^&]+)/)?.[1];
+
+    expect(rawPins).toBeDefined();
+    expect(rawPins).toContain("default%7C%7C'Stop%201'-122.3321%2047.6062");
+    expect(rawPins).toContain("%7C'Stop%202'-122.3493%2047.6205");
+    expect(rawPins).not.toContain('%27Stop%201%27%20-122.3321');
+    expect(rawPins).not.toContain('+');
+  });
+
+  it('should encode mixed labeled and unlabeled pins', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers({ 'content-length': '8' }),
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    };
+
+    (global.fetch as any).mockResolvedValueOnce(mockResponse);
+
+    const client = new AzureMapsClient({
+      endpoint: 'https://atlas.microsoft.com',
+      apiKey: 'test-api-key',
+    });
+
+    await client.renderStaticMap({
+      center: { latitude: 47.6062, longitude: -122.3321 },
+      zoom: 13,
+      pins: [
+        { latitude: 47.6062, longitude: -122.3321, label: 'Start Point' },
+        { latitude: 47.6134, longitude: -122.3407 },
+        { latitude: 47.6205, longitude: -122.3493, label: 'End Point' },
+      ],
+    });
+
+    const requestUrl = String((global.fetch as any).mock.calls[0][0]);
+    const rawPins = requestUrl.match(/[?&]pins=([^&]+)/)?.[1];
+
+    expect(rawPins).toBeDefined();
+    expect(rawPins).toContain("default%7C%7C'Start%20Point'-122.3321%2047.6062");
+    expect(rawPins).toContain('%7C-122.3407%2047.6134');
+    expect(rawPins).toContain("%7C'End%20Point'-122.3493%2047.6205");
+    expect(rawPins).not.toContain('%27Start%20Point%27%20-122.3321');
+  });
+
+  it('should preserve path overlay encoding with labeled pins', async () => {
     const mockResponse = {
       ok: true,
       headers: new Headers({ 'content-length': '8' }),
@@ -521,8 +586,8 @@ describe('HTTP Client: Static Map Pin Encoding', () => {
 
     expect(rawPins).toBeDefined();
     expect(rawPath).toBeDefined();
-    expect(rawPins).toContain('default%7C%7C-122.3321%2047.6062');
-    expect(rawPins).not.toContain('Hotel%20%26%20Spa');
+    expect(rawPins).toContain("default%7C%7C'Hotel%20%26%20Spa'-122.3321%2047.6062");
+    expect(rawPins).not.toContain('%27Hotel%20%26%20Spa%27%20-122.3321');
     expect(rawPins).not.toContain('+');
     expect(rawPath).toContain('lw3%7C%7C');
     expect(rawPath).not.toContain('+');
