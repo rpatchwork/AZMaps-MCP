@@ -96,7 +96,9 @@ Block client retests when deterministic local/CI gates fail.
 **Priority:** P0 (NO UNVERIFIED RETESTS)  
 **Assignee:** Neo (Infrastructure) + Trinity (MCP validation)  
 **Estimate:** 3 hours  
-**Status:** 🔴 Not Started
+**Status:** 🟢 Completed (immutable deployment verified; live retest decision = GO)
+
+**Status Note (2026-05-31):** Final outcome is GO after immutable deployment and live retest pass on `https://ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io` (`/healthz`, `tools/list`, labeled-pin `maps_render_static_map` variants including `routeGeometry`, and `maps_get_timezone` passed). Audit trail retained: an earlier same-day retest snapshot was NO-GO before immutable redeploy and fix verification. Evidence: `.squad/reports/deployment-verification.md`.
 
 **Objective:**  
 Ensure deployed environment is verified before requesting client retest.
@@ -118,10 +120,20 @@ Ensure deployed environment is verified before requesting client retest.
 **Priority:** P0 (CRITICAL PATH - NOTHING WORKS WITHOUT THIS)  
 **Assignee:** Neo (Infrastructure Specialist)  
 **Estimate:** 2 days (16 hours)  
-**Status:** 🔴 Not Started
+**Status:** 🟢 Completed (immutable deployment succeeded; active runtime verified)
+
+**Status Note (2026-05-31):** Deployment objective achieved: immutable image was deployed to `ca-azmaps-mcp-dev`, active revision is healthy, and runtime verification passed in live retest. Audit trail retained: an earlier remediation attempt against `azmapsmcp-mcp-dev` was blocked by `ContainerAppOperationInProgress` before the successful immutable deployment path. Evidence: `.squad/reports/deployment-verification.md`, `infra/stable/DEPLOYMENT_MANIFEST.md`.
 
 **Problem Statement:**  
 MCP service cannot be operational until Container Apps deployment succeeds. Previous deployment failed with RBAC/Log Analytics errors. This is the #1 blocker.
+
+**Execution (Active):**
+- **Owner:** Neo (Infrastructure Specialist)
+- **Start Timestamp:** 2026-05-31T00:00:00Z
+- **Expected Verification Artifacts:**
+  - `.squad/reports/deployment-verification.md` with active revision, image digest, endpoint, and smoke-check output
+  - `.squad/reports/release-readiness.md` gate entries for RS-001/RS-002/RS-003 with timestamps
+- **Next Checkpoint:** 2026-05-31T18:00:00Z (post-deploy verification evidence posted)
 
 **Acceptance Criteria:**
 - [ ] Container Apps deployed to `rg-azmaps-mcp-dev`

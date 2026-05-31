@@ -1,8 +1,8 @@
 # AZMaps-MCP Deployment Manifest
 
-**Version:** 1.0.0  
-**Date:** 2026-05-22  
-**Status:** STABLE - Production Ready
+**Version:** 1.0.2  
+**Date:** 2026-05-31  
+**Status:** STABLE - Production Ready (Immutable Runtime Verified)
 
 ---
 
@@ -12,7 +12,7 @@
 |-----------|--------|----------------|-------------|
 | Azure Container Registry | ✅ Deployed | `acr-deployment` | `/subscriptions/a235bb1a-6ca9-4949-91f0-c82ac40a4576/resourceGroups/rg-azmaps-mcp-dev/providers/Microsoft.ContainerRegistry/registries/azmapsmcp` |
 | Azure Maps Gen2 | ✅ Deployed | `maps-deployment` | `/subscriptions/a235bb1a-6ca9-4949-91f0-c82ac40a4576/resourceGroups/rg-azmaps-mcp-dev/providers/Microsoft.Maps/accounts/azmapsmcp-maps-dev` |
-| Container Apps | ⏸️ Pending | - | Not deployed (see archive) |
+| Container Apps | ✅ Deployed (active runtime, immutable image) | `revision ca-azmaps-mcp-dev--0000007` | `/subscriptions/a235bb1a-6ca9-4949-91f0-c82ac40a4576/resourceGroups/rg-azmaps-mcp-dev/providers/Microsoft.App/containerApps/ca-azmaps-mcp-dev` |
 
 ---
 
@@ -125,7 +125,16 @@ az deployment group create \
 | Image | Tag | Registry Location | Build Date |
 |-------|-----|------------------|------------|
 | azmaps-mcp | latest | azmapsmcp.azurecr.io/azmaps-mcp:latest | 2026-05-22 |
+| azmaps-mcp | commit-619c4ec11226 | azmapsmcp.azurecr.io/azmaps-mcp:commit-619c4ec11226 | 2026-05-31 |
 | azmaps-mcp | v1 | Local tag only | 2026-05-22 |
+
+### Active Runtime Image Provenance
+
+- Source commit: `619c4ec1122601784f750ca24a33dfaf5ec84c50`
+- Commit-linked tag: `azmapsmcp.azurecr.io/azmaps-mcp:commit-619c4ec11226`
+- Immutable digest: `sha256:023a7a67bb5a165fe4a6266875b12bda9246e63140e4eca2a21cc4b2b5b8d710`
+- Active deployed image: `azmapsmcp.azurecr.io/azmaps-mcp@sha256:023a7a67bb5a165fe4a6266875b12bda9246e63140e4eca2a21cc4b2b5b8d710`
+- Active revision: `ca-azmaps-mcp-dev--0000007`
 
 ### Image Push History
 ```bash
@@ -153,17 +162,22 @@ docker push azmapsmcp.azurecr.io/azmaps-mcp:latest
 
 ## Known Issues & Limitations
 
-### Container Apps Deployment (Failed)
-**Status:** ⏸️ Paused  
+### Legacy Container App Remediation Blocker
+**Status:** ⚠️ Partially blocked  
 **Location:** `archive/deploy-3-container-apps-FAILED/`
 
-**Issue:** Deployment failed during Container Apps provisioning
+**Issue:** `azmapsmcp-mcp-dev` remediation deployment is blocked by an in-flight operation:
+`ContainerAppOperationInProgress` (operation id: `ed1e4390-9a16-487b-a9f0-e7c24d668877`).
+
+**Current Runtime State:**
+1. Active endpoint `ca-azmaps-mcp-dev.graysand-f7f65db5.eastus.azurecontainerapps.io` is healthy
+2. MCP smoke check passed (`tools/list` and `maps_get_timezone`)
+3. Legacy app `azmapsmcp-mcp-dev` remains non-authoritative and returns HTTP 404 for MCP routes
 
 **Next Steps:**
-1. Review Container Apps Bicep template
-2. Verify environment configuration
-3. Check RBAC permissions for ACR pull
-4. Retry deployment with fixes
+1. Wait for active provisioning operation to complete on `azmapsmcp-mcp-dev`
+2. Re-run remediation deployment for legacy app only if still required
+3. Keep integration verification pinned to active app `ca-azmaps-mcp-dev`
 
 ---
 
@@ -199,6 +213,17 @@ az maps account delete \
 - ✅ Initial deployment of Azure Maps Gen2
 - ✅ Docker image built and pushed to ACR
 - ⏸️ Container Apps deployment postponed
+
+### v1.0.1 - 2026-05-31
+- ✅ Confirmed active Azure Container App runtime at `ca-azmaps-mcp-dev`
+- ✅ Verified MCP health and smoke checks against live FQDN
+- ⚠️ Documented remediation blocker on legacy app `azmapsmcp-mcp-dev` (`ContainerAppOperationInProgress`)
+
+### v1.0.2 - 2026-05-31
+- ✅ Built and pushed commit-linked image `azmaps-mcp:commit-619c4ec11226` to ACR
+- ✅ Deployed immutable digest `sha256:023a7a67bb5a165fe4a6266875b12bda9246e63140e4eca2a21cc4b2b5b8d710` to `ca-azmaps-mcp-dev`
+- ✅ Active revision moved to `ca-azmaps-mcp-dev--0000007` and reported healthy
+- ✅ Labeled-pin static map smoke check passed on active runtime
 
 ---
 
