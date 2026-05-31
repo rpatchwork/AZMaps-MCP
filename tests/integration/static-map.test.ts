@@ -208,6 +208,70 @@ describe.skipIf(SKIP_INTEGRATION)('Integration: Static Map', () => {
       expect(result.success).toBe(true);
       expect(result.data.imageBase64).toBeTruthy();
     });
+
+    it('should render routeGeometry with numeric, text, and punctuation labels', async () => {
+      const routeGeometry = JSON.stringify({
+        type: 'LineString',
+        coordinates: [
+          [-103.70781, 41.82859],
+          [-104.55762, 42.20348],
+          [-106.32521, 42.85724],
+          [-108.21079, 43.6506],
+        ],
+      });
+
+      const pins = [
+        { latitude: 41.8285904, longitude: -103.707807, label: '1' },
+        { latitude: 42.85724, longitude: -106.32521, label: 'ScottsBluff' },
+        { latitude: 43.6505995, longitude: -108.210787, label: 'Hotel & Spa #2' },
+      ];
+
+      const result = await client.renderStaticMap({
+        center: { latitude: 42.739355, longitude: -105.965204 },
+        zoom: 7,
+        width: 640,
+        height: 400,
+        routeGeometry,
+        pins,
+        format: 'png',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.imageBase64).toBeTruthy();
+      expect(result.data.sizeBytes).toBeGreaterThan(0);
+    });
+
+    it('should render routeGeometry with mixed labeled and unlabeled pins', async () => {
+      const routeGeometry = JSON.stringify({
+        type: 'LineString',
+        coordinates: [
+          [-103.70781, 41.82859],
+          [-104.55762, 42.20348],
+          [-106.32521, 42.85724],
+          [-108.21079, 43.6506],
+        ],
+      });
+
+      const pins = [
+        { latitude: 41.8285904, longitude: -103.707807, label: 'Start' },
+        { latitude: 42.20348, longitude: -104.55762 },
+        { latitude: 43.6505995, longitude: -108.210787, label: '2' },
+      ];
+
+      const result = await client.renderStaticMap({
+        center: { latitude: 42.739355, longitude: -105.965204 },
+        zoom: 7,
+        width: 640,
+        height: 400,
+        routeGeometry,
+        pins,
+        format: 'png',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data.imageBase64).toBeTruthy();
+      expect(result.data.sizeBytes).toBeGreaterThan(0);
+    });
   });
 
   describe('Edge Cases: Large Route (Cross-Country)', () => {

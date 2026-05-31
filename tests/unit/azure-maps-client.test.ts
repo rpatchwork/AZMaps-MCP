@@ -592,4 +592,55 @@ describe('HTTP Client: Static Map Pin Encoding', () => {
     expect(rawPath).toContain('lw3%7C%7C');
     expect(rawPath).not.toContain('+');
   });
+
+  it('should encode routeGeometry with numeric, text, punctuation, and mixed pins', async () => {
+    const mockResponse = {
+      ok: true,
+      headers: new Headers({ 'content-length': '8' }),
+      arrayBuffer: async () => new Uint8Array([137, 80, 78, 71]).buffer,
+    };
+
+    (global.fetch as any).mockResolvedValueOnce(mockResponse);
+
+    const client = new AzureMapsClient({
+      endpoint: 'https://atlas.microsoft.com',
+      apiKey: 'test-api-key',
+    });
+
+    await client.renderStaticMap({
+      center: { latitude: 42.739355, longitude: -105.965204 },
+      zoom: 7,
+      width: 640,
+      height: 400,
+      routeGeometry: JSON.stringify({
+        type: 'LineString',
+        coordinates: [
+          [-103.70781, 41.82859],
+          [-104.55762, 42.20348],
+          [-106.32521, 42.85724],
+          [-108.21079, 43.6506],
+        ],
+      }),
+      pins: [
+        { latitude: 41.8285904, longitude: -103.707807, label: '1' },
+        { latitude: 42.20348, longitude: -104.55762, label: 'ScottsBluff' },
+        { latitude: 42.85724, longitude: -106.32521 },
+        { latitude: 43.6505995, longitude: -108.210787, label: 'Hotel & Spa #2' },
+      ],
+    });
+
+    const requestUrl = String((global.fetch as any).mock.calls[0][0]);
+    const rawPins = requestUrl.match(/[?&]pins=([^&]+)/)?.[1];
+    const rawPath = requestUrl.match(/[?&]path=([^&]+)/)?.[1];
+
+    expect(rawPins).toBeDefined();
+    expect(rawPath).toBeDefined();
+    expect(rawPins).toContain("default%7C%7C'1'-103.707807%2041.8285904");
+    expect(rawPins).toContain("%7C'ScottsBluff'-104.55762%2042.20348");
+    expect(rawPins).toContain('%7C-106.32521%2042.85724');
+    expect(rawPins).toContain("%7C'Hotel%20%26%20Spa%20%232'-108.210787%2043.6505995");
+    expect(rawPins).not.toContain('+');
+    expect(rawPath).toContain('lcFF0000%7Clw3%7C%7C-103.70781%2041.82859');
+    expect(rawPath).not.toContain('+');
+  });
 });
