@@ -168,6 +168,20 @@ az deployment group show \
 
 ## Validation
 
+### CI Deployment Status Gate
+
+GitHub Actions now enforces a deployment status gate from `infra/stable/DEPLOYMENT_MANIFEST.md`.
+
+- Gate source of truth: `Container Apps` row in the `Deployment Summary` table
+- Blocked statuses: `Failed`, `Pending`
+- CI behavior: dedicated `Deployment Manifest Gate` job fails loudly with an explicit reason
+
+Local check command:
+
+```bash
+npm run check:deployment-manifest
+```
+
 ### Verify ACR Deployment
 ```bash
 az acr show --name azmapsmcp --resource-group rg-azmaps-mcp-dev

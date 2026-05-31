@@ -47,6 +47,72 @@
 
 ## Sprint Backlog (REFOCUSED)
 
+### RS-001: Release Provenance Gate
+
+**Priority:** P0 (RELEASE SAFETY)  
+**Assignee:** Morpheus (Lead) + Scribe (evidence)  
+**Estimate:** 2 hours  
+**Status:** 🔴 Not Started
+
+**Objective:**  
+Prevent ambiguous releases by requiring traceable provenance before any client-facing retest request.
+
+**Action Steps:**
+- [ ] Add a release evidence block to `.squad/reports/release-readiness.md` with: branch, commit SHA, PR link, and test command used.
+- [ ] Record one immutable artifact reference (CI run URL or local test log file path with timestamp).
+- [ ] Require explicit Lead sign-off line: `Approved for client retest: YES/NO`.
+
+**Done Criteria:**
+- [ ] Provenance fields are complete and non-empty for the candidate release.
+- [ ] Artifact reference resolves and matches the commit SHA.
+- [ ] Lead sign-off is set to `YES` before client retest is scheduled.
+
+---
+
+### RS-002: Deterministic Pre-Client Gates
+
+**Priority:** P0 (STOP BASIC GATING FAILURES)  
+**Assignee:** Tank (Testing)  
+**Estimate:** 3 hours  
+**Status:** 🔴 Not Started
+
+**Objective:**  
+Block client retests when deterministic local/CI gates fail.
+
+**Action Steps:**
+- [ ] Define and document required gate commands in `tests/README.md` under a `Pre-Client Gate` section.
+- [ ] Required minimum gates: static map integration target, unit target for map URL generation, and full `npx vitest run`.
+- [ ] Add a pass/fail checklist in `.squad/reports/release-readiness.md` with timestamp per gate.
+
+**Done Criteria:**
+- [ ] All required commands are listed exactly and are copy/paste runnable.
+- [ ] Each gate has recorded result: pass/fail + timestamp.
+- [ ] Client retest is blocked if any required gate is `fail` or `not run`.
+
+---
+
+### RS-003: Deployment Verification Before Client Retest
+
+**Priority:** P0 (NO UNVERIFIED RETESTS)  
+**Assignee:** Neo (Infrastructure) + Trinity (MCP validation)  
+**Estimate:** 3 hours  
+**Status:** 🔴 Not Started
+
+**Objective:**  
+Ensure deployed environment is verified before requesting client retest.
+
+**Action Steps:**
+- [ ] Verify deployed revision and image digest for target Container App.
+- [ ] Run post-deploy smoke checks: root endpoint, `tools/list`, and one tool call (`maps_render_static_map` or `maps_search_address`).
+- [ ] Capture verification output links/paths in `.squad/reports/deployment-verification.md`.
+
+**Done Criteria:**
+- [ ] Active revision, image digest, and endpoint are documented.
+- [ ] Smoke checks all pass against deployed endpoint.
+- [ ] Deployment verification report is linked from `.squad/reports/release-readiness.md` before client retest is requested.
+
+---
+
 ### WI-001: Container Apps Deployment Fix
 
 **Priority:** P0 (CRITICAL PATH - NOTHING WORKS WITHOUT THIS)  
