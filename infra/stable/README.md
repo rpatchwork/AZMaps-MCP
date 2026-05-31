@@ -168,6 +168,28 @@ az deployment group show \
 
 ## Validation
 
+### CI Deployment Status Gate
+
+GitHub Actions now enforces a deployment status gate from `infra/stable/DEPLOYMENT_MANIFEST.md`.
+
+- Gate source of truth: `Container Apps` row in the `Deployment Summary` table
+- Blocked statuses: `Failed`, `Pending`
+- CI behavior: dedicated `Deployment Manifest Gate` job fails loudly with an explicit reason
+
+Local check command:
+
+```bash
+npm run check:deployment-manifest
+```
+
+Local escalation command (non-GitHub workflow path):
+
+```bash
+npm run check:deployment-manifest:escalate
+```
+
+If the gate is blocked (`Pending` or `Failed`), this command writes a local escalation artifact to `.squad/work-routing/escalations/` and appends a routing entry to `.squad/work-routing/handoffs.log` assigned to Neo.
+
 ### Verify ACR Deployment
 ```bash
 az acr show --name azmapsmcp --resource-group rg-azmaps-mcp-dev

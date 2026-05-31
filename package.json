@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
+    "check:deployment-manifest": "node scripts/check-deployment-manifest-status.mjs",
+    "check:deployment-manifest:escalate": "node scripts/check-deployment-manifest-status.mjs --escalate",
     "test": "vitest",
     "test:unit": "vitest run --dir tests/unit",
     "test:integration": "vitest run --dir tests/integration",
