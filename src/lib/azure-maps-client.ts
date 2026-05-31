@@ -458,12 +458,21 @@ export class AzureMapsClient {
     
     // Build pins parameter.
     // Azure Maps static image API requires: default||lon lat|lon lat...
-    // Labels are accepted as input metadata but are not serialized into the pins
-    // query payload because labeled tokens are rejected by the live endpoint.
+    // Labeled pins require a strict token shape with no space between label and longitude:
+    // default||'Label'-122.3321 47.6062
     let pinsParam: string | undefined;
     if (params.pins && params.pins.length > 0) {
       const style = 'default';
-      const pinLocations = params.pins.map((p) => `${p.longitude} ${p.latitude}`);
+      const pinLocations = params.pins.map((p) => {
+        const coordinates = `${p.longitude} ${p.latitude}`;
+        if (!p.label) {
+          return coordinates;
+        }
+
+        // Keep the label quoted so spaces/punctuation stay inside the label token.
+        // Important: do not add a space between closing quote and longitude.
+        return `'${p.label}'${coordinates}`;
+      });
       pinsParam = `${style}||${pinLocations.join('|')}`;
     }
 
